@@ -17,6 +17,7 @@ import {
   safeHostname,
   selectBaseContent,
 } from './utils.js'
+import { extractYouTubeShortDescription } from './youtube.js'
 
 const LEADING_CONTROL_PATTERN = /^[\\s\\p{Cc}]+/u
 
@@ -170,7 +171,12 @@ async function buildResultFromHtmlDocument({
   const rawContent = extractArticleContent(html)
   const normalized = normalizeForPrompt(rawContent)
   const transcriptResolution = await resolveTranscriptForLink(url, html, deps, { cacheMode })
-  let baseContent = selectBaseContent(normalized, transcriptResolution.text)
+
+  const youtubeDescription =
+    transcriptResolution.text === null ? extractYouTubeShortDescription(html) : null
+  const baseCandidate = youtubeDescription ? normalizeForPrompt(youtubeDescription) : normalized
+
+  let baseContent = selectBaseContent(baseCandidate, transcriptResolution.text)
   if (baseContent === normalized) {
     baseContent = stripLeadingTitle(baseContent, title)
   }

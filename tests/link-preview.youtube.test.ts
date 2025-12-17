@@ -101,4 +101,38 @@ describe('link preview extraction (YouTube)', () => {
     expect(result.transcriptCharacters).toBeNull()
     expect(result.transcriptSource).toBe('unavailable')
   })
+
+  it('uses ytInitialPlayerResponse shortDescription when transcripts are unavailable', async () => {
+    const html =
+      '<!doctype html><html><head><title>Sample</title>' +
+      '<script>ytcfg.set({"INNERTUBE_API_KEY":"TEST_KEY","INNERTUBE_CONTEXT":{"client":{"clientName":"WEB","clientVersion":"1.0"}}});</script>' +
+      '<script>var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Line one\\n\\nLine two"}};</script>' +
+      '</head><body><main><p>Fallback paragraph</p></main></body></html>'
+
+    const fetchMock = vi.fn<[RequestInfo | URL, RequestInit?], Promise<Response>>((input) => {
+      const url = typeof input === 'string' ? input : (input?.url ?? '')
+      if (url.includes('youtubei/v1/get_transcript')) {
+        return Promise.resolve(jsonResponse({ actions: [] }))
+      }
+      if (url.includes('youtubei/v1/player')) {
+        return Promise.resolve(jsonResponse({}))
+      }
+      if (url.includes('api.apify.com')) {
+        return Promise.resolve(jsonResponse([], 201))
+      }
+      if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
+        return Promise.resolve(htmlResponse(html))
+      }
+      return Promise.reject(new Error(`Unexpected fetch call: ${String(url)}`))
+    })
+
+    const client = createLinkPreviewClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      apifyApiToken: 'TEST_TOKEN',
+    })
+    const result = await client.fetchLinkContent('https://www.youtube.com/watch?v=abcdefghijk')
+
+    expect(result.content).toBe('Line one\nLine two')
+    expect(result.transcriptSource).toBe('unavailable')
+  })
 })

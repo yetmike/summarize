@@ -77,41 +77,97 @@ export function extractYoutubeBootstrapConfig(html: string): Record<string, unkn
   return parseBootstrapFromScript(html)
 }
 
-// Regex only runs on YouTube bootstrap blobs we download ourselves.
-// eslint-disable-next-line security/detect-unsafe-regex
-const YTCFG_SET_REGEX = /ytcfg\.set\s*\(\s*(?:\)\]\}'\s*)?(\{[\s\S]*?\})\s*\);?/
-// eslint-disable-next-line security/detect-unsafe-regex
-const YTCFG_VAR_REGEX = /var\s+ytcfg\s*=\s*(\{[\s\S]*?\});?/
+const YTCFG_SET_TOKEN = 'ytcfg.set'
+const YTCFG_VAR_TOKEN = 'var ytcfg'
+
+function extractBalancedJsonObject(source: string, startAt: number): string | null {
+  const start = source.indexOf('{', startAt)
+  if (start < 0) {
+    return null
+  }
+
+  let depth = 0
+  let inString = false
+  let quote: '"' | "'" | null = null
+  let escaping = false
+
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i]
+    if (!ch) {
+      continue
+    }
+
+    if (inString) {
+      if (escaping) {
+        escaping = false
+        continue
+      }
+      if (ch === '\\') {
+        escaping = true
+        continue
+      }
+      if (quote && ch === quote) {
+        inString = false
+        quote = null
+      }
+      continue
+    }
+
+    if (ch === '"' || ch === "'") {
+      inString = true
+      quote = ch
+      continue
+    }
+
+    if (ch === '{') {
+      depth += 1
+      continue
+    }
+    if (ch === '}') {
+      depth -= 1
+      if (depth === 0) {
+        return source.slice(start, i + 1)
+      }
+    }
+  }
+
+  return null
+}
 
 function parseBootstrapFromScript(source: string): Record<string, unknown> | null {
   const sanitizedSource = sanitizeYoutubeJsonResponse(source.trimStart())
 
-  const setMatch = sanitizedSource.match(YTCFG_SET_REGEX)
-  if (setMatch?.[1]) {
-    const sanitized = sanitizeYoutubeJsonResponse(setMatch[1])
-    try {
-      const parsed: unknown = JSON.parse(sanitized)
-      if (isRecord(parsed)) {
-        return parsed
-      }
-    } catch {
-      // continue to next pattern
+  for (let index = 0; index >= 0; ) {
+    index = sanitizedSource.indexOf(YTCFG_SET_TOKEN, index)
+    if (index < 0) {
+      break
     }
+    const object = extractBalancedJsonObject(sanitizedSource, index)
+    if (object) {
+      try {
+        const parsed: unknown = JSON.parse(object)
+        if (isRecord(parsed)) {
+          return parsed
+        }
+      } catch {
+        // keep searching
+      }
+    }
+    index += YTCFG_SET_TOKEN.length
   }
 
-  const variableMatch = sanitizedSource.match(YTCFG_VAR_REGEX)
-  if (variableMatch?.[1]) {
-    const snippet = variableMatch[1].endsWith(';')
-      ? variableMatch[1].slice(0, -1)
-      : variableMatch[1]
-    const sanitized = sanitizeYoutubeJsonResponse(snippet)
-    try {
-      const parsed: unknown = JSON.parse(sanitized)
-      if (isRecord(parsed)) {
-        return parsed
+  const varIndex = sanitizedSource.indexOf(YTCFG_VAR_TOKEN)
+  if (varIndex >= 0) {
+    const object = extractBalancedJsonObject(sanitizedSource, varIndex)
+    if (object) {
+      try {
+        const parsed: unknown = JSON.parse(object)
+        if (isRecord(parsed)) {
+          return parsed
+        }
+      } catch {
+        return null
       }
-    } catch {
-      return null
     }
   }
 

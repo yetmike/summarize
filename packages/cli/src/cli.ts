@@ -152,7 +152,8 @@ async function main(): Promise<void> {
   })
   const extracted = await client.fetchLinkContent(args.url)
 
-  const prompt = buildLinkSummaryPrompt({
+  const isYouTube = extracted.siteName === 'YouTube'
+  const promptForModel = buildLinkSummaryPrompt({
     url: extracted.url,
     title: extracted.title,
     siteName: extracted.siteName,
@@ -160,27 +161,28 @@ async function main(): Promise<void> {
     content: extracted.content,
     truncated: extracted.truncated,
     hasTranscript:
-      extracted.transcriptSource !== null && extracted.transcriptSource !== 'unavailable',
+      isYouTube ||
+      (extracted.transcriptSource !== null && extracted.transcriptSource !== 'unavailable'),
     summaryLength: args.length,
     shares: [],
   })
 
   if (args.printPrompt) {
-    process.stdout.write(`${prompt}\n`)
+    process.stdout.write(`${promptForModel}\n`)
     return
   }
 
   const apiKey = typeof process.env.OPENAI_API_KEY === 'string' ? process.env.OPENAI_API_KEY : null
   if (!apiKey) {
     process.stderr.write('Missing OPENAI_API_KEY; printing prompt instead.\n')
-    process.stdout.write(`${prompt}\n`)
+    process.stdout.write(`${promptForModel}\n`)
     return
   }
 
   const summary = await summarizeWithOpenAI({
     apiKey,
     model: args.model,
-    prompt,
+    prompt: promptForModel,
     maxOutputTokens: SUMMARY_LENGTH_TO_TOKENS[args.length],
   })
 
