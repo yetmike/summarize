@@ -61,5 +61,23 @@ describe('google model resolution (Gemini API ListModels)', () => {
       })
     ).rejects.toThrow(/Try one of:/)
   })
-})
 
+  it('surfaces ListModels failures as actionable key/config errors', async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response('{"error":{"message":"bad key"}}', {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    await expect(
+      resolveGoogleModelForUsage({
+        requestedModelId: 'gemini-3.0-flash-preview',
+        apiKey: 'bad',
+        fetchImpl: fetchMock as unknown as typeof fetch,
+        timeoutMs: 2000,
+        requireMethod: 'streamGenerateContent',
+      })
+    ).rejects.toThrow(/GOOGLE_GENERATIVE_AI_API_KEY/i)
+  })
+})

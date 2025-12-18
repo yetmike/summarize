@@ -46,7 +46,15 @@ async function listGoogleModels({
       { signal }
     )
     if (!res.ok) {
-      throw new Error(`ListModels failed (${res.status} ${res.statusText})`)
+      let bodyText = ''
+      try {
+        bodyText = await res.text()
+      } catch {
+        bodyText = ''
+      }
+      const snippet = bodyText.trim().slice(0, 200)
+      const suffix = snippet.length > 0 ? `: ${snippet}` : ''
+      throw new Error(`Google ListModels failed (${res.status} ${res.statusText})${suffix}`)
     }
     const json = (await res.json()) as GoogleListModelsResponse
     return Array.isArray(json.models) ? json.models : []
@@ -92,7 +100,17 @@ export async function resolveGoogleModelForUsage({
     return { resolvedModelId: requested, note: null }
   }
 
-  const models = await listGoogleModels({ apiKey, fetchImpl, timeoutMs })
+  let models: GoogleModelInfo[]
+  try {
+    models = await listGoogleModels({ apiKey, fetchImpl, timeoutMs })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Cannot verify Google model availability for ${requestedModelId}. ${message}\n` +
+        `Check GOOGLE_GENERATIVE_AI_API_KEY and that the Gemini API is enabled for this key.`,
+      { cause: error }
+    )
+  }
   const byId = new Map<string, GoogleModelInfo>()
   for (const model of models) {
     byId.set(normalizeModelId(model.name), model)
@@ -132,4 +150,3 @@ export async function resolveGoogleModelForUsage({
     `Google model ${requestedModelId} is not available via the Gemini API (v1beta) for this API key. ${hint}`
   )
 }
-
