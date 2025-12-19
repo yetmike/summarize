@@ -387,7 +387,7 @@ ${heading('Examples')}
 ${heading('Env Vars')}
   XAI_API_KEY           optional (required for xai/... models)
   OPENAI_API_KEY        optional (required for openai/... models)
-  GEMINI_API_KEY        optional (required for google/... models; also accepts GOOGLE_GENERATIVE_AI_API_KEY)
+  GOOGLE_GENERATIVE_AI_API_KEY optional (required for google/... models; also accepts GEMINI_API_KEY / GOOGLE_API_KEY)
   ANTHROPIC_API_KEY     optional (required for anthropic/... models)
   SUMMARIZE_MODEL       optional (overrides default model selection)
   FIRECRAWL_API_KEY     optional website extraction fallback (Markdown)
@@ -679,10 +679,10 @@ export async function runCli(
   const firecrawlKey = typeof env.FIRECRAWL_API_KEY === 'string' ? env.FIRECRAWL_API_KEY : null
   const anthropicKeyRaw = typeof env.ANTHROPIC_API_KEY === 'string' ? env.ANTHROPIC_API_KEY : null
   const googleKeyRaw =
-    typeof env.GEMINI_API_KEY === 'string'
-      ? env.GEMINI_API_KEY
-      : typeof env.GOOGLE_GENERATIVE_AI_API_KEY === 'string'
-        ? env.GOOGLE_GENERATIVE_AI_API_KEY
+    typeof env.GOOGLE_GENERATIVE_AI_API_KEY === 'string'
+      ? env.GOOGLE_GENERATIVE_AI_API_KEY
+      : typeof env.GEMINI_API_KEY === 'string'
+        ? env.GEMINI_API_KEY
         : typeof env.GOOGLE_API_KEY === 'string'
           ? env.GOOGLE_API_KEY
           : null
@@ -838,7 +838,7 @@ export async function runCli(
       parsedModel.provider === 'xai'
         ? 'XAI_API_KEY'
         : parsedModel.provider === 'google'
-          ? 'GEMINI_API_KEY'
+          ? 'GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY)'
           : parsedModel.provider === 'anthropic'
             ? 'ANTHROPIC_API_KEY'
             : 'OPENAI_API_KEY'
@@ -1310,7 +1310,7 @@ export async function runCli(
       parsedModelForLlm.provider === 'xai'
         ? 'XAI_API_KEY'
         : parsedModelForLlm.provider === 'google'
-          ? 'GEMINI_API_KEY'
+          ? 'GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY)'
           : parsedModelForLlm.provider === 'anthropic'
             ? 'ANTHROPIC_API_KEY'
             : 'OPENAI_API_KEY'
@@ -1544,7 +1544,7 @@ export async function runCli(
       parsedModel.provider === 'xai'
         ? 'XAI_API_KEY'
         : parsedModel.provider === 'google'
-          ? 'GEMINI_API_KEY'
+          ? 'GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY)'
           : parsedModel.provider === 'anthropic'
             ? 'ANTHROPIC_API_KEY'
             : 'OPENAI_API_KEY'

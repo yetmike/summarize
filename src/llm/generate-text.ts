@@ -96,7 +96,10 @@ export async function generateTextWithModelId({
 
     if (parsed.provider === 'google') {
       const apiKey = apiKeys.googleApiKey
-      if (!apiKey) throw new Error('Missing GOOGLE_GENERATIVE_AI_API_KEY for google/... model')
+      if (!apiKey)
+        throw new Error(
+          'Missing GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY) for google/... model'
+        )
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
       const google = createGoogleGenerativeAI({ apiKey, fetch: fetchImpl })
       const result = await generateText({
@@ -226,7 +229,10 @@ export async function streamTextWithModelId({
 
     if (parsed.provider === 'google') {
       const apiKey = apiKeys.googleApiKey
-      if (!apiKey) throw new Error('Missing GOOGLE_GENERATIVE_AI_API_KEY for google/... model')
+      if (!apiKey)
+        throw new Error(
+          'Missing GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY) for google/... model'
+        )
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
       const google = createGoogleGenerativeAI({ apiKey, fetch: fetchImpl })
       const result = streamText({

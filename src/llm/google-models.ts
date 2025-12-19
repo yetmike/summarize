@@ -105,7 +105,7 @@ export async function resolveGoogleModelForUsage({
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
       `Cannot verify Google model availability for ${requestedModelId}. ${message}\n` +
-        `Check GOOGLE_GENERATIVE_AI_API_KEY and that the Gemini API is enabled for this key.`,
+        `Check GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY) and that the Gemini API is enabled for this key.`,
       { cause: error }
     )
   }
