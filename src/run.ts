@@ -218,6 +218,53 @@ function isTextLikeMediaType(mediaType: string): boolean {
   )
 }
 
+function isArchiveMediaType(mediaType: string): boolean {
+  const mt = mediaType.toLowerCase()
+  return (
+    mt === 'application/zip' ||
+    mt === 'application/x-zip-compressed' ||
+    mt === 'application/x-7z-compressed' ||
+    mt === 'application/x-rar-compressed' ||
+    mt === 'application/x-tar' ||
+    mt === 'application/gzip'
+  )
+}
+
+function attachmentByteLength(attachment: Awaited<ReturnType<typeof loadLocalAsset>>['attachment']) {
+  if (attachment.part.type === 'image') {
+    const image = attachment.part.image
+    if (image instanceof Uint8Array) return image.byteLength
+    if (typeof image === 'string') return image.length
+    return null
+  }
+
+  const data = (attachment.part as { data?: unknown }).data
+  if (data instanceof Uint8Array) return data.byteLength
+  if (typeof data === 'string') return data.length
+  return null
+}
+
+function assertAssetMediaTypeSupported({
+  attachment,
+  sizeLabel,
+}: {
+  attachment: Awaited<ReturnType<typeof loadLocalAsset>>['attachment']
+  sizeLabel: string | null
+}) {
+  if (!isArchiveMediaType(attachment.mediaType)) return
+
+  const name = attachment.filename ?? 'file'
+  const bytes = attachmentByteLength(attachment)
+  const size = sizeLabel ?? (typeof bytes === 'number' ? formatBytes(bytes) : null)
+  const details = size ? `${attachment.mediaType}, ${size}` : attachment.mediaType
+
+  throw new Error(
+    `Unsupported file type: ${name} (${details})\n` +
+      `Archive formats (zip/tar/7z/rar) can’t be sent to the model.\n` +
+      `Unzip and summarize a specific file instead (e.g. README.md).`
+  )
+}
+
 function buildAssetPromptPayload({
   promptText,
   attachment,
@@ -1158,14 +1205,15 @@ export async function runCli(
       spinner.stopAndClear()
       stopOscProgress()
     }
-    clearProgressBeforeStdout = stopProgress
-    try {
-      const loaded = await loadLocalAsset({ filePath: inputTarget.filePath })
-      if (progressEnabled) {
-        const mt = loaded.attachment.mediaType
-        const name = loaded.attachment.filename
-        const details = sizeLabel ? `${mt}, ${sizeLabel}` : mt
-        spinner.setText(name ? `Summarizing ${name} (${details})…` : `Summarizing ${details}…`)
+	    clearProgressBeforeStdout = stopProgress
+	    try {
+	      const loaded = await loadLocalAsset({ filePath: inputTarget.filePath })
+	      assertAssetMediaTypeSupported({ attachment: loaded.attachment, sizeLabel })
+	      if (progressEnabled) {
+	        const mt = loaded.attachment.mediaType
+	        const name = loaded.attachment.filename
+	        const details = sizeLabel ? `${mt}, ${sizeLabel}` : mt
+	        spinner.setText(name ? `Summarizing ${name} (${details})…` : `Summarizing ${details}…`)
       }
       await summarizeAsset({
         sourceKind: 'file',
@@ -1216,12 +1264,13 @@ export async function runCli(
           }
         })()
 
-        if (!loaded) return
-        if (progressEnabled) spinner.setText('Summarizing…')
-        await summarizeAsset({
-          sourceKind: 'asset-url',
-          sourceLabel: loaded.sourceLabel,
-          attachment: loaded.attachment,
+	        if (!loaded) return
+	        assertAssetMediaTypeSupported({ attachment: loaded.attachment, sizeLabel: null })
+	        if (progressEnabled) spinner.setText('Summarizing…')
+	        await summarizeAsset({
+	          sourceKind: 'asset-url',
+	          sourceLabel: loaded.sourceLabel,
+	          attachment: loaded.attachment,
         })
         return
       } finally {

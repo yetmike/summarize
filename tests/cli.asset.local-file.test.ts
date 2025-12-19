@@ -252,4 +252,28 @@ describe('cli asset inputs (local file)', () => {
 
     globalFetchSpy.mockRestore()
   })
+
+  it('errors early for zip archives with a helpful message', async () => {
+    streamTextMock.mockClear()
+
+    const root = mkdtempSync(join(tmpdir(), 'summarize-asset-local-zip-'))
+    const zipPath = join(root, 'JetBrainsMono-2.304.zip')
+    // ZIP local file header: PK\x03\x04
+    writeFileSync(zipPath, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]))
+
+    const run = () =>
+      runCli(['--model', 'google/gemini-3-flash-preview', '--timeout', '2s', zipPath], {
+        env: { HOME: root },
+        fetch: vi.fn(async () => {
+          throw new Error('unexpected fetch')
+        }) as unknown as typeof fetch,
+        stdout: collectStream().stream,
+        stderr: collectStream().stream,
+      })
+
+    await expect(run()).rejects.toThrow(/Unsupported file type/i)
+    await expect(run()).rejects.toThrow(/application\/zip/i)
+    await expect(run()).rejects.toThrow(/unzip/i)
+    expect(streamTextMock).toHaveBeenCalledTimes(0)
+  })
 })
