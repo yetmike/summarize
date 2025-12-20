@@ -8,12 +8,27 @@
 - Preflight text prompts with the GPT tokenizer and the model’s max input tokens.
 - Reject text files over 10 MB before tokenization.
 - Reject too-small numeric `--length` and `--max-output-tokens` values.
+- Cap summaries to the extracted content length when a requested size is larger.
 - Compute cost totals via tokentally’s tally helpers.
 - Improve fetch spinner with elapsed time and throughput updates.
 - Show Firecrawl fallback status and reason when scraping kicks in.
 - Enforce a hard deadline for stalled streaming LLM responses.
-- Cap summaries to the extracted content length when a requested size is larger.
+- Merge cumulative streaming chunks correctly and keep stream-merge for streaming output.
+
+### Tests
+
 - Add CLI + live coverage for prompt length capping.
+- Add coverage for cumulative stream merge handling.
+
+### Docs
+
+- Update release checklist to all-in-one flow.
+- Fix release script quoting.
+- Document input limits and minimum length/token values.
+
+### Dev
+
+- Add a tokenization benchmark script.
 
 ## 0.1.1 - 2025-12-19
 
