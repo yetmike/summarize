@@ -1,7 +1,7 @@
+import type { ExecFileOptions } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import type { ExecFileOptions } from 'node:child_process'
 
 export type ExecFileFn = typeof import('node:child_process').execFile
 

@@ -21,29 +21,33 @@ import { buildRunMetricsReport } from './costs.js'
 import { createFirecrawlScraper } from './firecrawl.js'
 import {
   parseDurationMs,
-  parseFirecrawlMode,
   parseExtractFormat,
+  parseFirecrawlMode,
   parseLengthArg,
   parseMarkdownMode,
   parseMaxOutputTokensArg,
-  parsePreprocessMode,
   parseMetricsMode,
+  parsePreprocessMode,
   parseRenderMode,
   parseStreamMode,
   parseYoutubeMode,
 } from './flags.js'
-import { convertToMarkdownWithMarkitdown, type ExecFileFn } from './markitdown.js'
 import { generateTextWithModelId, streamTextWithModelId } from './llm/generate-text.js'
 import { resolveGoogleModelForUsage } from './llm/google-models.js'
 import { createHtmlToMarkdownConverter } from './llm/html-to-markdown.js'
 import { normalizeGatewayStyleModelId, parseGatewayStyleModelId } from './llm/model-id.js'
+import { convertToMarkdownWithMarkitdown, type ExecFileFn } from './markitdown.js'
 import {
   loadLiteLlmCatalog,
   resolveLiteLlmMaxInputTokensForModelId,
   resolveLiteLlmMaxOutputTokensForModelId,
   resolveLiteLlmPricingForModelId,
 } from './pricing/litellm.js'
-import { buildFileSummaryPrompt, buildFileTextSummaryPrompt, buildLinkSummaryPrompt } from './prompts/index.js'
+import {
+  buildFileSummaryPrompt,
+  buildFileTextSummaryPrompt,
+  buildLinkSummaryPrompt,
+} from './prompts/index.js'
 import type { SummaryLength } from './shared/contracts.js'
 import { startOscProgress } from './tty/osc-progress.js'
 import { startSpinner } from './tty/spinner.js'
@@ -299,9 +303,7 @@ function buildProgram() {
       undefined
     )
     .option('--extract', 'Print extracted content and exit (no LLM summary)', false)
-    .addOption(
-      new Option('--extract-only', 'Deprecated alias for --extract').hideHelp()
-    )
+    .addOption(new Option('--extract-only', 'Deprecated alias for --extract').hideHelp())
     .option('--json', 'Output structured JSON (includes prompt + metrics)', false)
     .option(
       '--stream <mode>',
@@ -864,9 +866,6 @@ export async function runCli(
   const firecrawlExplicitlySet = normalizedArgv.some(
     (arg) => arg === '--firecrawl' || arg.startsWith('--firecrawl=')
   )
-  const formatExplicitlySet = normalizedArgv.some(
-    (arg) => arg === '--format' || arg.startsWith('--format=')
-  )
   const markdownModeExplicitlySet = normalizedArgv.some(
     (arg) =>
       arg === '--markdown-mode' ||
@@ -1190,9 +1189,12 @@ export async function runCli(
     let usingPreprocessedMarkdown = false
 
     if (preprocessMode === 'always' && canPreprocessWithMarkitdown) {
+      if (!fileBytes) {
+        throw new Error('Internal error: missing file bytes for markitdown preprocessing')
+      }
       try {
         preprocessedMarkdown = await convertToMarkdownWithMarkitdown({
-          bytes: fileBytes!,
+          bytes: fileBytes,
           filenameHint: attachment.filename,
           mediaTypeHint: attachment.mediaType,
           uvxCommand: env.UVX_PATH,
@@ -1214,9 +1216,13 @@ export async function runCli(
       usingPreprocessedMarkdown = true
     }
 
-    let promptPayload: string | Array<ModelMessage> = usingPreprocessedMarkdown
-      ? buildMarkitdownPromptPayload(preprocessedMarkdown!)
-      : buildAttachmentPromptPayload()
+    let promptPayload: string | Array<ModelMessage> = buildAttachmentPromptPayload()
+    if (usingPreprocessedMarkdown) {
+      if (!preprocessedMarkdown) {
+        throw new Error('Internal error: missing markitdown content for preprocessing')
+      }
+      promptPayload = buildMarkitdownPromptPayload(preprocessedMarkdown)
+    }
 
     if (!usingPreprocessedMarkdown) {
       try {
@@ -1238,9 +1244,12 @@ export async function runCli(
           }
           throw error
         }
+        if (!fileBytes) {
+          throw new Error('Internal error: missing file bytes for markitdown preprocessing')
+        }
         try {
           preprocessedMarkdown = await convertToMarkdownWithMarkitdown({
-            bytes: fileBytes!,
+            bytes: fileBytes,
             filenameHint: attachment.filename,
             mediaTypeHint: attachment.mediaType,
             uvxCommand: env.UVX_PATH,
@@ -1252,7 +1261,8 @@ export async function runCli(
           if (preprocessMode === 'auto') {
             throw error
           }
-          const message = markitdownError instanceof Error ? markitdownError.message : String(markitdownError)
+          const message =
+            markitdownError instanceof Error ? markitdownError.message : String(markitdownError)
           throw new Error(
             `Failed to preprocess ${attachment.mediaType} with markitdown: ${message} (disable with --preprocess off).`
           )
@@ -1709,12 +1719,7 @@ export async function runCli(
   }
 
   const firecrawlMode = (() => {
-    if (
-      wantsMarkdown &&
-      !isYoutubeUrl &&
-      !firecrawlExplicitlySet &&
-      firecrawlConfigured
-    ) {
+    if (wantsMarkdown && !isYoutubeUrl && !firecrawlExplicitlySet && firecrawlConfigured) {
       return 'always'
     }
     return requestedFirecrawlMode
@@ -1802,7 +1807,13 @@ export async function runCli(
 
   const markitdownHtmlToMarkdown =
     markdownRequested && preprocessMode !== 'off' && hasUvxCli(env)
-      ? async (args: { url: string; html: string; title: string | null; siteName: string | null; timeoutMs: number }) => {
+      ? async (args: {
+          url: string
+          html: string
+          title: string | null
+          siteName: string | null
+          timeoutMs: number
+        }) => {
           void args.url
           void args.title
           void args.siteName
@@ -1819,7 +1830,13 @@ export async function runCli(
       : null
 
   const convertHtmlToMarkdown = markdownRequested
-    ? async (args: { url: string; html: string; title: string | null; siteName: string | null; timeoutMs: number }) => {
+    ? async (args: {
+        url: string
+        html: string
+        title: string | null
+        siteName: string | null
+        timeoutMs: number
+      }) => {
         if (effectiveMarkdownMode === 'llm') {
           if (!llmHtmlToMarkdown) {
             throw new Error('No HTML→Markdown converter configured')

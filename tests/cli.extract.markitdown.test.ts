@@ -1,6 +1,7 @@
 import { Writable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ExecFileFn } from '../src/markitdown.js'
 import { runCli } from '../src/run.js'
 
 describe('cli --extract --format md (markitdown fallback)', () => {
@@ -34,7 +35,7 @@ describe('cli --extract --format md (markitdown fallback)', () => {
     await runCli(['--extract', '--format', 'md', 'https://example.com'], {
       env: { UVX_PATH: 'uvx' },
       fetch: fetchMock as unknown as typeof fetch,
-      execFile: execFileMock as unknown as any,
+      execFile: execFileMock as unknown as ExecFileFn,
       stdout,
       stderr: new Writable({
         write(_chunk, _encoding, callback) {

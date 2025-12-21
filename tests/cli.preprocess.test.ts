@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ExecFileFn } from '../src/markitdown.js'
 import { runCli } from '../src/run.js'
 
 function noopStream() {
@@ -83,15 +84,18 @@ describe('cli preprocess / markitdown integration', () => {
     })
 
     const run = () =>
-      runCli(['--model', 'xai/grok-4-fast-non-reasoning', '--timeout', '2s', '--stream', 'on', pdfPath], {
-        env: { XAI_API_KEY: 'test', UVX_PATH: 'uvx' },
-        fetch: vi.fn(async () => {
-          throw new Error('unexpected fetch')
-        }) as unknown as typeof fetch,
-        execFile: execFileMock as unknown as any,
-        stdout: noopStream(),
-        stderr: noopStream(),
-      })
+      runCli(
+        ['--model', 'xai/grok-4-fast-non-reasoning', '--timeout', '2s', '--stream', 'on', pdfPath],
+        {
+          env: { XAI_API_KEY: 'test', UVX_PATH: 'uvx' },
+          fetch: vi.fn(async () => {
+            throw new Error('unexpected fetch')
+          }) as unknown as typeof fetch,
+          execFile: execFileMock as unknown as ExecFileFn,
+          stdout: noopStream(),
+          stderr: noopStream(),
+        }
+      )
 
     await expect(run()).rejects.toThrow(/does not support attaching files/i)
     expect(streamTextMock).toHaveBeenCalledTimes(0)
@@ -130,7 +134,7 @@ describe('cli preprocess / markitdown integration', () => {
         fetch: vi.fn(async () => {
           throw new Error('unexpected fetch')
         }) as unknown as typeof fetch,
-        execFile: execFileMock as unknown as any,
+        execFile: execFileMock as unknown as ExecFileFn,
         stdout: stdout.stream,
         stderr: noopStream(),
       }
@@ -179,7 +183,7 @@ describe('cli preprocess / markitdown integration', () => {
         fetch: vi.fn(async () => {
           throw new Error('unexpected fetch')
         }) as unknown as typeof fetch,
-        execFile: execFileMock as unknown as any,
+        execFile: execFileMock as unknown as ExecFileFn,
         stdout: stdout.stream,
         stderr: noopStream(),
       }

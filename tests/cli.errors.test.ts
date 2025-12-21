@@ -76,12 +76,15 @@ describe('cli error handling', () => {
       },
     })
 
-    await runCli(['--format', 'md', '--markdown-mode', 'auto', '--extract', 'https://example.com'], {
-      env: {},
-      fetch: fetchMock as unknown as typeof fetch,
-      stdout,
-      stderr: noopStream(),
-    })
+    await runCli(
+      ['--format', 'md', '--markdown-mode', 'auto', '--extract', 'https://example.com'],
+      {
+        env: {},
+        fetch: fetchMock as unknown as typeof fetch,
+        stdout,
+        stderr: noopStream(),
+      }
+    )
 
     expect(stdoutText.length).toBeGreaterThan(0)
   })
