@@ -113,19 +113,29 @@ describe('cli error handling', () => {
     ).rejects.toThrow('--format md conflicts with --markdown-mode off')
   })
 
-  it('errors when summarizing without the required model API key', async () => {
+  it('prints extracted content when summarizing without any model API keys (default auto)', async () => {
     const html = `<!doctype html><html><head><title>Ok</title></head><body><article><p>${'A'.repeat(
       260
     )}</p></article></body></html>`
 
-    await expect(
-      runCli(['--timeout', '2s', 'https://example.com'], {
-        env: {},
-        fetch: vi.fn(async () => new Response(html, { status: 200 })) as unknown as typeof fetch,
-        stdout: noopStream(),
-        stderr: noopStream(),
-      })
-    ).rejects.toThrow(/Missing GEMINI_API_KEY/)
+    const fetchMock = vi.fn(async () => new Response(html, { status: 200 }))
+
+    let stdoutText = ''
+    const stdout = new Writable({
+      write(chunk, _encoding, callback) {
+        stdoutText += chunk.toString()
+        callback()
+      },
+    })
+
+    await runCli(['--timeout', '2s', 'https://example.com'], {
+      env: {},
+      fetch: fetchMock as unknown as typeof fetch,
+      stdout,
+      stderr: noopStream(),
+    })
+
+    expect(stdoutText).toContain('A'.repeat(50))
   })
 
   it('adds a bird tip when Twitter fetch fails and bird is unavailable', async () => {

@@ -39,7 +39,7 @@ export type ModelConfig =
       id: string
     }
   | {
-      mode: 'auto'
+      mode: 'auto' | 'free'
       rules?: AutoRule[]
     }
 
@@ -252,6 +252,7 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
 
     // Shorthand:
     // - "auto" -> { mode: "auto" }
+    // - "free" -> { mode: "free" }
     // - "<provider>/<model>" or "openrouter/<provider>/<model>" -> { id: "..." }
     if (typeof raw === 'string') {
       const value = raw.trim()
@@ -260,6 +261,9 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
       }
       if (value.toLowerCase() === 'auto') {
         return { mode: 'auto' } satisfies ModelConfig
+      }
+      if (value.toLowerCase() === 'free') {
+        return { mode: 'free' } satisfies ModelConfig
       }
       return { id: value } satisfies ModelConfig
     }
@@ -276,7 +280,8 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
       return { id } satisfies ModelConfig
     }
 
-    if (raw.mode === 'auto') {
+    if (raw.mode === 'auto' || raw.mode === 'free') {
+      const mode = raw.mode
       const rules = (() => {
         if (typeof raw.rules === 'undefined') return undefined
         if (!Array.isArray(raw.rules)) {
@@ -319,11 +324,11 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
         }
         return rulesParsed
       })()
-      return { mode: 'auto', ...(rules ? { rules } : {}) } satisfies ModelConfig
+      return { mode, ...(rules ? { rules } : {}) } satisfies ModelConfig
     }
 
     throw new Error(
-      `Invalid config file ${path}: "model" must include either "id" or { "mode": "auto" }.`
+      `Invalid config file ${path}: "model" must include either "id" or { "mode": "auto"|"free" }.`
     )
   })()
 

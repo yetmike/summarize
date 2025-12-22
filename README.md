@@ -16,7 +16,7 @@ Requires Node 22+.
 - npx (no install):
 
 ```bash
-npx -y @steipete/summarize "https://example.com" --model google/gemini-3-flash-preview
+npx -y @steipete/summarize "https://example.com"
 ```
 
 - npm (global install):
@@ -36,7 +36,7 @@ Apple Silicon only (arm64).
 ## Quickstart
 
 ```bash
-summarize "https://example.com" --model google/gemini-3-flash-preview
+summarize "https://example.com"
 ```
 
 Input can be a URL or a local file path:
@@ -79,7 +79,7 @@ Use “gateway-style” ids: `<provider>/<model>`.
 
 Examples:
 
-- `openai/gpt-5.2`
+- `openai/gpt-5-mini`
 - `anthropic/claude-opus-4-5`
 - `xai/grok-4-fast-non-reasoning`
 - `google/gemini-3-flash-preview`
@@ -113,7 +113,9 @@ npx -y @steipete/summarize "https://example.com" --length 20k
 npx -y @steipete/summarize <input> [flags]
 ```
 
-- `--model <provider/model>`: which model to use (defaults to `google/gemini-3-flash-preview`)
+- `--model <provider/model>`: which model to use (defaults to `auto`)
+- `--model auto`: automatic model selection + fallback (default)
+- `--model free` (alias: `--model 3`): OpenRouter `:free` models only
 - `--timeout <duration>`: `30s`, `2m`, `5000ms` (default `2m`)
 - `--retries <count>`: LLM retry attempts on timeout (default `1`)
 - `--length short|medium|long|xl|xxl|<chars>`
@@ -165,7 +167,7 @@ Supported keys today:
 
 ```json
 {
-  "model": { "id": "openai/gpt-5.2" }
+  "model": { "id": "openai/gpt-5-mini" }
 }
 ```
 
@@ -173,13 +175,14 @@ Shorthand (equivalent):
 
 ```json
 {
-  "model": "openai/gpt-5.2"
+  "model": "openai/gpt-5-mini"
 }
 ```
 
 Also supported:
 
 - `model: { "mode": "auto" }` (automatic model selection + fallback; see `docs/model-auto.md`)
+- `model: { "mode": "free" }` (OpenRouter `:free` models only; alias: `--model 3`)
 - `model.rules` (customize candidates / ordering)
 - `media.videoMode: "auto"|"transcript"|"understand"`
 
@@ -190,7 +193,7 @@ Precedence:
 1) `--model`
 2) `SUMMARIZE_MODEL`
 3) `~/.summarize/config.json`
-4) default
+4) default (`auto`)
 
 ## Environment variables
 
@@ -205,13 +208,13 @@ Set the key matching your chosen `--model`:
 OpenRouter (OpenAI-compatible):
 
 - Set `OPENROUTER_API_KEY=...`
-- Prefer forcing OpenRouter per model id: `--model openrouter/<provider>/<model>` (e.g. `openrouter/openai/gpt-5-nano`)
+- Prefer forcing OpenRouter per model id: `--model openrouter/<author>/<slug>` (e.g. `openrouter/meta-llama/llama-3.1-8b-instruct:free`)
 - Optional: `OPENROUTER_PROVIDERS=...` to specify provider fallback order (e.g. `groq,google-vertex`)
 
 Example:
 
 ```bash
-OPENROUTER_API_KEY=sk-or-... summarize "https://example.com" --model openrouter/openai/gpt-5-nano
+OPENROUTER_API_KEY=sk-or-... summarize "https://example.com" --model openrouter/meta-llama/llama-3.1-8b-instruct:free
 ```
 
 With provider ordering (falls back through providers in order):

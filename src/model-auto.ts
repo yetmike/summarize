@@ -7,6 +7,7 @@ import {
 } from './pricing/litellm.js'
 
 export type AutoSelectionInput = {
+  mode: 'auto' | 'free'
   kind: AutoRuleKind
   promptTokens: number | null
   desiredOutputTokens: number | null
@@ -37,32 +38,90 @@ const DEFAULT_RULES: AutoRule[] = [
     candidates: ['google/gemini-3-flash-preview', 'google/gemini-2.5-flash-lite-preview-09-2025'],
   },
   {
-    when: ['youtube'],
+    when: ['image'],
     candidates: [
-      'openai/gpt-5-nano',
       'google/gemini-3-flash-preview',
-      'xai/grok-4-fast-non-reasoning',
+      'openai/gpt-5-mini',
+      'openai/gpt-5-nano',
+      'anthropic/claude-sonnet-4-5',
     ],
   },
   {
-    when: ['website'],
-    candidates: ['openai/gpt-5-nano', 'openai/gpt-5.2', 'xai/grok-4-fast-non-reasoning'],
+    when: ['website', 'youtube', 'text'],
+    bands: [
+      {
+        token: { max: 50_000 },
+        candidates: [
+          'google/gemini-3-flash-preview',
+          'openai/gpt-5-nano',
+          'anthropic/claude-sonnet-4-5',
+        ],
+      },
+      {
+        token: { max: 200_000 },
+        candidates: [
+          'google/gemini-3-flash-preview',
+          'openai/gpt-5-mini',
+          'anthropic/claude-sonnet-4-5',
+        ],
+      },
+      {
+        candidates: [
+          'xai/grok-4-fast-non-reasoning',
+          'google/gemini-3-flash-preview',
+          'openai/gpt-5-mini',
+          'anthropic/claude-sonnet-4-5',
+        ],
+      },
+    ],
   },
   {
-    when: ['text'],
-    candidates: ['openai/gpt-5-nano', 'openai/gpt-5.2', 'xai/grok-4-fast-non-reasoning'],
+    when: ['file'],
+    candidates: [
+      'google/gemini-3-flash-preview',
+      'openai/gpt-5-mini',
+      'openai/gpt-5-nano',
+      'anthropic/claude-sonnet-4-5',
+    ],
   },
   {
     candidates: [
-      'openai/gpt-5-nano',
       'google/gemini-3-flash-preview',
+      'openai/gpt-5-nano',
+      'openai/gpt-5-mini',
+      'anthropic/claude-sonnet-4-5',
       'xai/grok-4-fast-non-reasoning',
+    ],
+  },
+]
+
+const DEFAULT_FREE_RULES: AutoRule[] = [
+  {
+    candidates: [
+      'openrouter/deepseek/deepseek-r1:free',
+      'openrouter/meta-llama/llama-3.1-8b-instruct:free',
+      'openrouter/qwen/qwen2.5-72b-instruct:free',
+      'openrouter/mistralai/mistral-small-3.1:free',
+      'openrouter/google/gemma-2-9b-it:free',
     ],
   },
 ]
 
 function isCandidateOpenRouter(modelId: string): boolean {
   return modelId.trim().toLowerCase().startsWith('openrouter/')
+}
+
+function normalizeOpenRouterModelId(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return null
+  if (!trimmed.includes('/')) return null
+  return trimmed.toLowerCase()
+}
+
+function isOpenRouterFreeCandidate(modelId: string): boolean {
+  const lower = modelId.trim().toLowerCase()
+  if (!lower.startsWith('openrouter/')) return false
+  return lower.endsWith(':free')
 }
 
 function requiredEnvForCandidate(modelId: string): AutoModelAttempt['requiredEnv'] {
@@ -109,10 +168,12 @@ function tokenMatchesBand({
 }
 
 function resolveRuleCandidates({
+  mode,
   kind,
   promptTokens,
   config,
 }: {
+  mode: 'auto' | 'free'
   kind: AutoRuleKind
   promptTokens: number | null
   config: SummarizeConfig | null
@@ -122,13 +183,13 @@ function resolveRuleCandidates({
     if (
       model &&
       'mode' in model &&
-      model.mode === 'auto' &&
+      model.mode === mode &&
       Array.isArray(model.rules) &&
       model.rules.length > 0
     ) {
       return model.rules
     }
-    return DEFAULT_RULES
+    return mode === 'free' ? DEFAULT_FREE_RULES : DEFAULT_RULES
   })()
 
   for (const rule of rules) {
@@ -151,8 +212,8 @@ function resolveRuleCandidates({
     }
   }
 
-  const fallback = DEFAULT_RULES[DEFAULT_RULES.length - 1]
-  return fallback.candidates ?? []
+  const fallback = rules[rules.length - 1]
+  return fallback?.candidates ?? []
 }
 
 function estimateCostUsd({
@@ -190,6 +251,7 @@ function isVideoUnderstandingCapable(modelId: string): boolean {
 
 export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAttempt[] {
   const candidates = resolveRuleCandidates({
+    mode: input.mode,
     kind: input.kind,
     promptTokens: input.promptTokens,
     config: input.config,
@@ -199,6 +261,10 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
   for (const modelRawEntry of candidates) {
     const modelRaw = modelRawEntry.trim()
     if (modelRaw.length === 0) continue
+
+    if (input.mode === 'free' && !isOpenRouterFreeCandidate(modelRaw)) {
+      continue
+    }
 
     const explicitOpenRouter = isCandidateOpenRouter(modelRaw)
 
@@ -249,8 +315,11 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
 
       const userModelId = options.openrouter ? modelId : normalizeGatewayStyleModelId(modelId)
       const openrouterModelId = options.openrouter
-        ? normalizeGatewayStyleModelId(modelId.slice('openrouter/'.length).trim())
+        ? normalizeOpenRouterModelId(modelId.slice('openrouter/'.length))
         : null
+      if (options.openrouter && !openrouterModelId) {
+        return
+      }
       const llmModelId = options.openrouter
         ? `openai/${openrouterModelId}`
         : normalizeGatewayStyleModelId(modelId)
@@ -278,6 +347,10 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
         openrouter: true,
         openrouterProviders: input.openrouterProvidersFromEnv,
       })
+      continue
+    }
+
+    if (input.mode === 'free') {
       continue
     }
 

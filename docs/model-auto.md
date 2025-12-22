@@ -2,6 +2,8 @@
 
 `--model auto` picks a model based on input kind + token size, and retries with fallbacks when something fails.
 
+This is also the built-in default when you don’t specify a model.
+
 ## What it does
 
 - Builds an ordered list of model “attempts” from `candidates[]` (native first, optional OpenRouter fallback).
@@ -20,7 +22,7 @@ You’ll still see a `via …` footer when non-trivial extraction happened (Fire
 Model ids:
 
 - Native: `<provider>/<model>` (e.g. `openai/gpt-5-nano`, `google/gemini-3-flash-preview`)
-- Forced OpenRouter: `openrouter/<provider>/<model>` (e.g. `openrouter/openai/gpt-5-nano`)
+- Forced OpenRouter: `openrouter/<author>/<slug>` (e.g. `openrouter/meta-llama/llama-3.1-8b-instruct:free`)
 
 Behavior:
 

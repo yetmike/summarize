@@ -4,7 +4,7 @@ By default `summarize` will call an LLM using **direct provider API keys**.
 
 ## Defaults
 
-- Default model: `google/gemini-3-flash-preview`
+- Default model: `auto`
 - Override with `SUMMARIZE_MODEL`, config file (`model`), or `--model`.
 
 ## Env
@@ -24,13 +24,15 @@ By default `summarize` will call an LLM using **direct provider API keys**.
 - `--model <model>`
   - Examples:
     - `google/gemini-3-flash-preview`
-    - `openai/gpt-5.2`
+    - `openai/gpt-5-mini`
     - `xai/grok-4-fast-non-reasoning`
     - `google/gemini-2.0-flash`
     - `anthropic/claude-sonnet-4-5`
-    - `openrouter/openai/gpt-5-nano` (force OpenRouter)
+    - `openrouter/meta-llama/llama-3.1-8b-instruct:free` (force OpenRouter)
 - `--model auto`
   - See `docs/model-auto.md`
+- `--model free` (alias: `--model 3`)
+  - Uses OpenRouter `:free` models only.
 - `--video-mode auto|transcript|understand`
   - Only relevant for video inputs / video-only pages.
 - `--length short|medium|long|xl|xxl|<chars>`

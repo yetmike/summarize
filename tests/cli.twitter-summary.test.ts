@@ -57,13 +57,21 @@ describe('cli tweet summarization bypass', () => {
     const html = `<!doctype html><html><head><title>Tweet</title></head><body><article><p>${tweet}</p></article></body></html>`
     const fetchMock = buildFetchMock(html)
 
-    await expect(
-      runCli(['--length', '200', tweetUrl], {
-        env: { PATH: '' },
-        fetch: fetchMock as unknown as typeof fetch,
-        stdout: noopStream(),
-        stderr: noopStream(),
-      })
-    ).rejects.toThrow(/Missing GEMINI_API_KEY/)
+    let stdoutText = ''
+    const stdout = new Writable({
+      write(chunk, _encoding, callback) {
+        stdoutText += chunk.toString()
+        callback()
+      },
+    })
+
+    await runCli(['--length', '200', tweetUrl], {
+      env: { PATH: '' },
+      fetch: fetchMock as unknown as typeof fetch,
+      stdout,
+      stderr: noopStream(),
+    })
+
+    expect(stdoutText).toContain(tweet.slice(0, 50))
   })
 })

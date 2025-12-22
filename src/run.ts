@@ -620,8 +620,8 @@ ${heading('Examples')}
   ${cmd('summarize "https://example.com" --extract --format md')} ${dim('# extracted markdown (prefers Firecrawl when configured)')}
   ${cmd('summarize "https://example.com" --extract --format md --markdown-mode llm')} ${dim('# extracted markdown via LLM')}
   ${cmd('summarize "https://www.youtube.com/watch?v=I845O57ZSy4&t=11s" --extract --youtube web')}
-  ${cmd('summarize "https://example.com" --length 20k --max-output-tokens 2k --timeout 2m --model openai/gpt-5.2')}
-  ${cmd('OPENROUTER_API_KEY=... summarize "https://example.com" --model openai/openai/gpt-oss-20b')}
+  ${cmd('summarize "https://example.com" --length 20k --max-output-tokens 2k --timeout 2m --model openai/gpt-5-mini')}
+  ${cmd('OPENROUTER_API_KEY=... summarize "https://example.com" --model free')} ${dim('# OpenRouter free-tier models only')}
   ${cmd('summarize "https://example.com" --json --verbose')}
 
 ${heading('Env Vars')}
@@ -1132,17 +1132,22 @@ export async function runCli(
         const id = modelFromConfig.id.trim()
         if (id.length > 0) return id
       }
-      if ('mode' in modelFromConfig && modelFromConfig.mode === 'auto') {
-        return 'auto'
-      }
+      if ('mode' in modelFromConfig && modelFromConfig.mode === 'auto') return 'auto'
+      if ('mode' in modelFromConfig && modelFromConfig.mode === 'free') return 'free'
     }
-    return 'google/gemini-3-flash-preview'
+    return 'auto'
   })()
 
   const requestedModel: RequestedModel = parseRequestedModelId(
     ((modelArg?.trim() ?? '') || resolvedDefaultModel).trim()
   )
-  const requestedModelLabel = requestedModel.kind === 'auto' ? 'auto' : requestedModel.userModelId
+  const requestedModelLabel =
+    requestedModel.kind === 'auto'
+      ? 'auto'
+      : requestedModel.kind === 'free'
+        ? 'free'
+        : requestedModel.userModelId
+  const isFallbackModel = requestedModel.kind === 'auto' || requestedModel.kind === 'free'
 
   const verboseColor = supportsColor(stderr, env)
   const effectiveStreamMode = (() => {
@@ -1676,11 +1681,14 @@ export async function runCli(
 
     const promptTokensForAuto =
       typeof promptPayload === 'string' ? countTokens(promptPayload) : null
-    const kind = attachment.mediaType.toLowerCase().startsWith('video/')
+    const lowerMediaType = attachment.mediaType.toLowerCase()
+    const kind = lowerMediaType.startsWith('video/')
       ? ('video' as const)
-      : textContent
-        ? ('text' as const)
-        : ('file' as const)
+      : lowerMediaType.startsWith('image/')
+        ? ('image' as const)
+        : textContent
+          ? ('text' as const)
+          : ('file' as const)
     const requiresVideoUnderstanding = kind === 'video' && videoMode !== 'transcript'
     const extractedTextForNoModel =
       kind === 'text'
@@ -1690,7 +1698,7 @@ export async function runCli(
         : null
 
     if (
-      requestedModel.kind === 'auto' &&
+      isFallbackModel &&
       typeof desiredOutputTokens === 'number' &&
       typeof extractedTextForNoModel === 'string' &&
       extractedTextForNoModel.trim().length > 0 &&
@@ -1754,9 +1762,10 @@ export async function runCli(
     }
 
     const attempts: ModelAttempt[] = await (async () => {
-      if (requestedModel.kind === 'auto') {
+      if (isFallbackModel) {
         const catalog = await getLiteLlmCatalog()
         const all = buildAutoModelAttempts({
+          mode: requestedModel.kind === 'free' ? 'free' : 'auto',
           kind,
           promptTokens: promptTokensForAuto,
           desiredOutputTokens,
@@ -1805,7 +1814,7 @@ export async function runCli(
     for (const attempt of attempts) {
       const hasKey = envHasKeyFor(attempt.requiredEnv)
       if (!hasKey) {
-        if (requestedModel.kind === 'auto') {
+        if (isFallbackModel) {
           writeVerbose(
             stderr,
             verbose,
@@ -1823,14 +1832,14 @@ export async function runCli(
         summaryResult = await runSummaryAttempt({
           attempt,
           prompt: promptPayload,
-          allowStreaming: requestedModel.kind !== 'auto',
+          allowStreaming: requestedModel.kind === 'fixed',
           onModelChosen: onModelChosen ?? null,
         })
         usedAttempt = attempt
         break
       } catch (error) {
         lastError = error
-        if (requestedModel.kind !== 'auto') {
+        if (requestedModel.kind === 'fixed') {
           if (isUnsupportedAttachmentError(error)) {
             throw new Error(
               `Model ${attempt.userModelId} does not support attaching files of type ${attachment.mediaType}. Try a different --model.`,
@@ -2198,6 +2207,7 @@ export async function runCli(
         if (!model) return null
         if ('id' in model) return model.id
         if ('mode' in model && model.mode === 'auto') return 'auto'
+        if ('mode' in model && model.mode === 'free') return 'free'
         return null
       })()
     )}`,
@@ -2547,6 +2557,7 @@ export async function runCli(
       viaSourceLabel = viaSources.length > 0 ? `, ${viaSources.join('+')}` : ''
 
       footerBaseParts = []
+      if (extracted.diagnostics.strategy === 'html') footerBaseParts.push('html')
       if (extracted.diagnostics.strategy === 'bird') footerBaseParts.push('bird')
       if (extracted.diagnostics.strategy === 'nitter') footerBaseParts.push('nitter')
       if (extracted.diagnostics.firecrawl.used) footerBaseParts.push('firecrawl')
@@ -2858,7 +2869,7 @@ export async function runCli(
     const promptTokens = countTokens(prompt)
 
     if (
-      requestedModel.kind === 'auto' &&
+      isFallbackModel &&
       typeof desiredOutputTokens === 'number' &&
       extracted.content.trim().length > 0 &&
       countTokens(extracted.content) <= desiredOutputTokens
@@ -2920,9 +2931,10 @@ export async function runCli(
 
     const kindForAuto = isYouTube ? ('youtube' as const) : ('website' as const)
     const attempts: ModelAttempt[] = await (async () => {
-      if (requestedModel.kind === 'auto') {
+      if (isFallbackModel) {
         const catalog = await getLiteLlmCatalog()
         const list = buildAutoModelAttempts({
+          mode: requestedModel.kind === 'free' ? 'free' : 'auto',
           kind: kindForAuto,
           promptTokens,
           desiredOutputTokens,
@@ -2972,7 +2984,7 @@ export async function runCli(
     for (const attempt of attempts) {
       const hasKey = envHasKeyFor(attempt.requiredEnv)
       if (!hasKey) {
-        if (requestedModel.kind === 'auto') {
+        if (isFallbackModel) {
           writeVerbose(
             stderr,
             verbose,
@@ -2990,14 +3002,14 @@ export async function runCli(
         summaryResult = await runSummaryAttempt({
           attempt,
           prompt,
-          allowStreaming: requestedModel.kind !== 'auto',
+          allowStreaming: requestedModel.kind === 'fixed',
           onModelChosen,
         })
         usedAttempt = attempt
         break
       } catch (error) {
         lastError = error
-        if (requestedModel.kind !== 'auto') {
+        if (requestedModel.kind === 'fixed') {
           throw error
         }
         writeVerbose(

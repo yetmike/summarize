@@ -15,7 +15,7 @@ For `model`:
 1. CLI flag `--model`
 2. Env `SUMMARIZE_MODEL`
 3. Config file `model`
-4. Built-in default (`google/gemini-3-flash-preview`)
+4. Built-in default (`auto`)
 
 ## Format
 
@@ -48,6 +48,22 @@ Shorthand (equivalent):
 ```json
 {
   "model": "auto"
+}
+```
+
+`model` can also be free-only (OpenRouter `:free` models):
+
+```json
+{
+  "model": { "mode": "free" }
+}
+```
+
+Shorthand (equivalent):
+
+```json
+{
+  "model": "free"
 }
 ```
 

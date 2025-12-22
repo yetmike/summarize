@@ -20,7 +20,10 @@ export type FixedModelSpec =
       requiredEnv: 'OPENROUTER_API_KEY'
     }
 
-export type RequestedModel = { kind: 'auto' } | ({ kind: 'fixed' } & FixedModelSpec)
+export type RequestedModel =
+  | { kind: 'auto' }
+  | { kind: 'free' }
+  | ({ kind: 'fixed' } & FixedModelSpec)
 
 export function parseRequestedModelId(raw: string): RequestedModel {
   const trimmed = raw.trim()
@@ -28,6 +31,7 @@ export function parseRequestedModelId(raw: string): RequestedModel {
 
   const lower = trimmed.toLowerCase()
   if (lower === 'auto') return { kind: 'auto' }
+  if (lower === 'free' || lower === '3') return { kind: 'free' }
 
   if (lower.startsWith('openrouter/')) {
     const openrouterModelId = trimmed.slice('openrouter/'.length).trim()
