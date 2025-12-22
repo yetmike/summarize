@@ -172,4 +172,70 @@ describe('auto model selection', () => {
     expect(attempts[0]?.userModelId).toBe('openrouter/deepseek/deepseek-r1:free')
     expect(attempts[0]?.forceOpenRouter).toBe(true)
   })
+
+  it('filters candidates by LiteLLM max input tokens (skips too-small context)', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['openai/gpt-5-nano', 'openai/gpt-5-mini'] }],
+      },
+    }
+
+    const catalog = {
+      'gpt-5-nano': { max_input_tokens: 10 },
+      'gpt-5-mini': { max_input_tokens: 1000 },
+    }
+
+    const attempts = buildAutoModelAttempts({
+      mode: 'auto',
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENAI_API_KEY: 'test' },
+      config,
+      catalog,
+      openrouterProvidersFromEnv: null,
+    })
+
+    expect(attempts[0]?.userModelId).toBe('openai/gpt-5-mini')
+  })
+
+  it('supports multi-kind "when" arrays', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [
+          { when: ['youtube', 'website'], candidates: ['openai/gpt-5-nano'] },
+          { when: ['text'], candidates: ['openai/gpt-5-mini'] },
+        ],
+      },
+    }
+
+    const attemptsWebsite = buildAutoModelAttempts({
+      mode: 'auto',
+      kind: 'website',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENAI_API_KEY: 'test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+    })
+    expect(attemptsWebsite[0]?.userModelId).toBe('openai/gpt-5-nano')
+
+    const attemptsText = buildAutoModelAttempts({
+      mode: 'auto',
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENAI_API_KEY: 'test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+    })
+    expect(attemptsText[0]?.userModelId).toBe('openai/gpt-5-mini')
+  })
 })

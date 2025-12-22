@@ -60,4 +60,22 @@ describe('config loading', () => {
       media: { videoMode: 'auto' },
     })
   })
+
+  it('supports model shorthand strings ("auto", "free", provider/model)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'summarize-config-'))
+    const configDir = join(root, '.summarize')
+    mkdirSync(configDir, { recursive: true })
+    const configPath = join(configDir, 'config.json')
+
+    writeFileSync(configPath, JSON.stringify({ model: 'auto' }), 'utf8')
+    expect(loadSummarizeConfig({ env: { HOME: root } }).config).toEqual({ model: { mode: 'auto' } })
+
+    writeFileSync(configPath, JSON.stringify({ model: 'free' }), 'utf8')
+    expect(loadSummarizeConfig({ env: { HOME: root } }).config).toEqual({ model: { mode: 'free' } })
+
+    writeFileSync(configPath, JSON.stringify({ model: 'openai/gpt-5-mini' }), 'utf8')
+    expect(loadSummarizeConfig({ env: { HOME: root } }).config).toEqual({
+      model: { id: 'openai/gpt-5-mini' },
+    })
+  })
 })
