@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +17,7 @@ vi.mock('../src/llm/generate-text.js', () => ({
 
 describe('--model auto no-model-url-verbose-error', () => {
   it('prints extracted content and a verbose "auto failed all models" line', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'summarize-auto-no-model-url-verbose-error-'))
     const html = `<!doctype html><html><head><title>Ok</title></head><body><article><p>${'A'.repeat(
       2000
     )}</p></article></body></html>`
@@ -52,7 +56,7 @@ describe('--model auto no-model-url-verbose-error', () => {
     await runCli(
       ['--verbose', '--max-output-tokens', '50', '--timeout', '2s', 'https://example.com'],
       {
-        env: { GEMINI_API_KEY: 'x' },
+        env: { HOME: root, GEMINI_API_KEY: 'x' },
         fetch: fetchMock as unknown as typeof fetch,
         stdout,
         stderr,
