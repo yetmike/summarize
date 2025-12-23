@@ -14,6 +14,7 @@ export type CliProviderConfig = {
   enabled?: boolean
 }
 export type CliConfig = {
+  enabled?: CliProvider[]
   disabled?: CliProvider[]
   prefer?: boolean
   claude?: CliProviderConfig
@@ -104,9 +105,13 @@ function parseStringArray(raw: unknown, path: string, label: string): string[] {
   return items
 }
 
-function parseCliProviderList(raw: unknown, path: string): CliProvider[] | undefined {
+function parseCliProviderList(
+  raw: unknown,
+  path: string,
+  label: string
+): CliProvider[] | undefined {
   if (!Array.isArray(raw)) {
-    throw new Error(`Invalid config file ${path}: "cli.disabled" must be an array.`)
+    throw new Error(`Invalid config file ${path}: "${label}" must be an array.`)
   }
   const providers: CliProvider[] = []
   for (const entry of raw) {
@@ -412,8 +417,14 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
     const value = parsed.cli
     if (!isRecord(value)) return undefined
 
+    const enabled =
+      typeof value.enabled !== 'undefined'
+        ? parseCliProviderList(value.enabled, path, 'cli.enabled')
+        : undefined
     const disabled =
-      typeof value.disabled !== 'undefined' ? parseCliProviderList(value.disabled, path) : undefined
+      typeof value.disabled !== 'undefined'
+        ? parseCliProviderList(value.disabled, path, 'cli.disabled')
+        : undefined
     const prefer = typeof value.prefer === 'boolean' ? value.prefer : undefined
     const claude = value.claude ? parseCliProviderConfig(value.claude, path, 'claude') : undefined
     const codex = value.codex ? parseCliProviderConfig(value.codex, path, 'codex') : undefined
@@ -430,7 +441,8 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
         ? undefined
         : parseStringArray(value.extraArgs, path, 'cli.extraArgs')
 
-    return disabled ||
+    return enabled ||
+      disabled ||
       typeof prefer === 'boolean' ||
       claude ||
       codex ||
@@ -440,6 +452,7 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
       cwd ||
       (extraArgs && extraArgs.length > 0)
       ? {
+          ...(enabled ? { enabled } : {}),
           ...(disabled ? { disabled } : {}),
           ...(typeof prefer === 'boolean' ? { prefer } : {}),
           ...(claude ? { claude } : {}),

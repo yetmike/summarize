@@ -112,10 +112,11 @@ Notes:
 ```json
 {
   "cli": {
+    "enabled": ["claude", "gemini", "codex"],
     "prefer": true,
     "disabled": ["gemini"],
     "codex": { "model": "gpt-5.2" },
-    "claude": { "path": "/usr/local/bin/claude", "args": ["--verbose"] }
+    "claude": { "binary": "/usr/local/bin/claude", "extraArgs": ["--verbose"] }
   }
 }
 ```
@@ -123,6 +124,7 @@ Notes:
 Notes:
 
 - `cli.prefer` defaults to `true` (auto mode prepends CLI attempts).
+- `cli.enabled` is an allowlist (omit for all providers).
 - `cli.disabled` can disable individual CLI providers.
-- `cli.<provider>.path` overrides CLI binary discovery.
-- `cli.<provider>.args` appends extra CLI args.
+- `cli.<provider>.binary` overrides CLI binary discovery.
+- `cli.<provider>.extraArgs` appends extra CLI args.

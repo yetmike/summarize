@@ -11,6 +11,8 @@ This is also the built-in default when you don’t specify a model.
 - On any request error, tries the next attempt.
 - If no model is usable, prints the extracted text (no LLM summary).
 - If CLI tools are available, auto mode prepends CLI attempts unless disabled (see `docs/cli.md`).
+  - Order: Claude → Gemini → Codex.
+  - `cli.enabled` is an allowlist (omit for all).
 
 ## “No model needed” shortcut
 

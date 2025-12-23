@@ -131,6 +131,41 @@ npx -y @steipete/summarize <input> [flags]
 - `--verbose`: debug/diagnostics on stderr
 - `--metrics off|on|detailed`: metrics output (default `on`; `detailed` prints a breakdown to stderr)
 
+## Auto model ordering
+
+`--model auto` builds candidate attempts from built-in rules (or your `model.rules` overrides).
+When CLI tools are available, the default prepend order is:
+
+1) Claude CLI
+2) Gemini CLI
+3) Codex CLI
+
+Then the native provider candidates (with OpenRouter fallbacks when configured).
+
+Disable CLI attempts (common):
+
+```json
+{
+  "cli": { "enabled": [] }
+}
+```
+
+Limit to specific CLIs:
+
+```json
+{
+  "cli": { "enabled": ["claude"] }
+}
+```
+
+To disable only the prepend behavior (but still allow explicit `--model cli/...`), set:
+
+```json
+{
+  "cli": { "prefer": false }
+}
+```
+
 ## Website extraction (Firecrawl + Markdown)
 
 Non-YouTube URLs go through a “fetch → extract” pipeline. When the direct fetch/extraction is blocked or too thin, `--firecrawl auto` can fall back to Firecrawl (if configured).

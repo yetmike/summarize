@@ -121,6 +121,7 @@ const DEFAULT_CLI_MODELS: Record<CliProvider, string> = {
 function isCliProviderEnabled(provider: CliProvider, config: SummarizeConfig | null): boolean {
   const cli = config?.cli
   if (!cli) return true
+  if (Array.isArray(cli.enabled) && !cli.enabled.includes(provider)) return false
   if (Array.isArray(cli.disabled) && cli.disabled.includes(provider)) return false
   const providerConfig =
     provider === 'claude' ? cli.claude : provider === 'codex' ? cli.codex : cli.gemini
@@ -282,9 +283,9 @@ function prependCliCandidates({
     const id = `cli/${provider}/${model}`
     if (!cliCandidates.includes(id)) cliCandidates.push(id)
   }
-  add('codex', cli?.codex?.model)
   add('claude', cli?.claude?.model)
   add('gemini', cli?.gemini?.model)
+  add('codex', cli?.codex?.model)
   if (cliCandidates.length === 0) return candidates
   return [...cliCandidates, ...candidates]
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 - 2025-12-23
+
+### Changes
+
+- Auto mode CLI prepend order is now Claude → Gemini → Codex.
+- Add `cli.enabled` allowlist to control which CLI providers are considered.
+- Document CLI ordering + disable options in README and CLI/auto docs.
+
 ## 0.5.0 - 2025-12-22
 
 ### Breaking

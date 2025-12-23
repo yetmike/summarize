@@ -253,9 +253,9 @@ describe('auto model selection', () => {
       cliAvailability: { claude: true, codex: true, gemini: true },
     })
 
-    expect(attempts[0]?.userModelId).toBe('cli/codex/gpt-5.2')
-    expect(attempts[1]?.userModelId).toBe('cli/claude/sonnet')
-    expect(attempts[2]?.userModelId).toBe('cli/gemini/gemini-3-flash-preview')
+    expect(attempts[0]?.userModelId).toBe('cli/claude/sonnet')
+    expect(attempts[1]?.userModelId).toBe('cli/gemini/gemini-3-flash-preview')
+    expect(attempts[2]?.userModelId).toBe('cli/codex/gpt-5.2')
   })
 
   it('can disable CLI prepending via config', () => {

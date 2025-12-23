@@ -10,7 +10,13 @@ Summarize can use installed CLIs (Claude, Codex, Gemini) as local model backends
 
 ## Auto mode
 
-When a CLI is installed, auto mode prepends CLI attempts before API models.
+When a CLI is installed, auto mode prepends CLI attempts before API models in this order:
+Claude → Gemini → Codex.
+
+Control which CLIs are considered:
+
+- `cli.enabled` is an allowlist (when omitted, all three are enabled).
+- Set `cli.enabled: []` to disable all CLI attempts in auto mode.
 
 Disable globally:
 
@@ -24,7 +30,7 @@ Disable per provider:
 
 ```json
 {
-  "cli": { "disabled": ["gemini"] }
+  "cli": { "enabled": ["claude"] }
 }
 ```
 
@@ -49,14 +55,15 @@ path-based prompt and enables the required tool flags:
 ```json
 {
   "cli": {
+    "enabled": ["claude", "gemini", "codex"],
     "prefer": true,
     "disabled": ["claude"],
     "codex": { "model": "gpt-5.2" },
-    "gemini": { "model": "gemini-3-flash-preview" },
+    "gemini": { "model": "gemini-3-flash-preview", "extraArgs": ["--verbose"] },
     "claude": {
       "model": "sonnet",
-      "path": "/usr/local/bin/claude",
-      "args": ["--verbose"]
+      "binary": "/usr/local/bin/claude",
+      "extraArgs": ["--verbose"]
     }
   }
 }

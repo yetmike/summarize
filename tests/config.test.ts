@@ -274,6 +274,7 @@ describe('config loading', () => {
   it('parses cli config overrides', () => {
     const { root } = writeJsonConfig({
       cli: {
+        enabled: ['claude', 'gemini'],
         prefer: false,
         disabled: ['claude'],
         claude: {
@@ -293,6 +294,7 @@ describe('config loading', () => {
     })
     expect(loadSummarizeConfig({ env: { HOME: root } }).config).toEqual({
       cli: {
+        enabled: ['claude', 'gemini'],
         prefer: false,
         disabled: ['claude'],
         claude: {
@@ -312,6 +314,11 @@ describe('config loading', () => {
 
   it('rejects invalid cli disabled providers', () => {
     const { root } = writeJsonConfig({ cli: { disabled: ['nope'] } })
+    expect(() => loadSummarizeConfig({ env: { HOME: root } })).toThrow(/unknown CLI provider/)
+  })
+
+  it('rejects invalid cli enabled providers', () => {
+    const { root } = writeJsonConfig({ cli: { enabled: ['nope'] } })
     expect(() => loadSummarizeConfig({ env: { HOME: root } })).toThrow(/unknown CLI provider/)
   })
 
