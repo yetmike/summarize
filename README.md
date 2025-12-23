@@ -141,6 +141,7 @@ When CLI tools are available, the default prepend order is:
 3) Codex CLI
 
 Then the native provider candidates (with OpenRouter fallbacks when configured).
+If `cli.enabled` is omitted, all CLI providers are enabled by default.
 
 Disable CLI attempts (common):
 
