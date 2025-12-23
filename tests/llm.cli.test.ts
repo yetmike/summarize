@@ -165,6 +165,54 @@ describe('runCliModel', () => {
     expect(result.text).toBe('from stdout')
   })
 
+  it('parses Codex JSONL usage + cost when present', async () => {
+    const execFileImpl = makeStub(() => ({
+      stdout: [
+        JSON.stringify({
+          usage: { input_tokens: 4, output_tokens: 2, total_tokens: 6 },
+        }),
+        JSON.stringify({
+          response: { usage: { prompt_tokens: 1, completion_tokens: 3, total_tokens: 4 } },
+          cost_usd: 0.5,
+        }),
+        JSON.stringify({
+          metrics: { usage: { inputTokens: 5, outputTokens: 6, totalTokens: 11 } },
+        }),
+      ].join('\n'),
+    }))
+
+    const result = await runCliModel({
+      provider: 'codex',
+      prompt: 'Test',
+      model: 'gpt-5.2',
+      allowTools: false,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: null,
+    })
+
+    expect(result.text).toContain('{')
+    expect(result.usage).toEqual({ promptTokens: 5, completionTokens: 6, totalTokens: 11 })
+    expect(result.costUsd).toBe(0.5)
+  })
+
+  it('throws when Codex returns no output file and empty stdout', async () => {
+    const execFileImpl = makeStub(() => ({ stdout: '' }))
+    await expect(
+      runCliModel({
+        provider: 'codex',
+        prompt: 'Test',
+        model: 'gpt-5.2',
+        allowTools: false,
+        timeoutMs: 1000,
+        env: {},
+        execFileImpl,
+        config: null,
+      })
+    ).rejects.toThrow(/empty output/i)
+  })
+
   it('falls back to plain text output', async () => {
     const execFileImpl = makeStub(() => ({ stdout: 'plain text' }))
     const result = await runCliModel({
