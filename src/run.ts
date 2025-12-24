@@ -2134,6 +2134,7 @@ export async function runCli(
                 width: markdownRenderWidth(stdout, env),
                 wrap: true,
                 color: supportsColor(stdout, env),
+                hyperlinks: true,
               }),
           })
         : null
@@ -2671,6 +2672,7 @@ export async function runCli(
               width: markdownRenderWidth(stdout, env),
               wrap: true,
               color: supportsColor(stdout, env),
+              hyperlinks: true,
             })
           : summary
 
@@ -3925,6 +3927,7 @@ export async function runCli(
               width: markdownRenderWidth(stdout, env),
               wrap: true,
               color: supportsColor(stdout, env),
+              hyperlinks: true,
             })
           : summary
 
