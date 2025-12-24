@@ -1198,9 +1198,9 @@ function writeFinishLine({
 
   const hasAnyTokens = promptTokens !== null || completionTokens !== null || totalTokens !== null
   const tokensPart = hasAnyTokens
-    ? `${promptTokens != null ? formatCompactCount(promptTokens) : 'unknown'}/${
+    ? `↑${promptTokens != null ? formatCompactCount(promptTokens) : 'unknown'} ↓${
         completionTokens != null ? formatCompactCount(completionTokens) : 'unknown'
-      }/${totalTokens != null ? formatCompactCount(totalTokens) : 'unknown'} (in/out/Σ)`
+      } Δ${totalTokens != null ? formatCompactCount(totalTokens) : 'unknown'}`
     : null
 
   const summaryParts: Array<string | null> = [
