@@ -43,6 +43,8 @@
           <h1>Website mode</h1>
           <p>Fetch HTML → extract “article-ish” content → normalize to clean text. If extraction looks blocked or too thin, retry via Firecrawl Markdown (optional). With <code>--format md</code>, the CLI prefers Firecrawl Markdown when configured and can also convert HTML → Markdown via <code>--markdown-mode</code> (LLM) or <code>uvx markitdown</code>.</p>
 
+          <p>Podcast pages are supported (Apple Podcasts, Spotify episodes, RSS feeds, Podbean, Podchaser, embedded YouTube). Summaries use published transcripts when available, otherwise Whisper.</p>
+
           <h2>Flags</h2>
           <ul>
             <li><code>--firecrawl off|auto|always</code></li>

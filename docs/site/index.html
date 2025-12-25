@@ -46,6 +46,7 @@
               <div class="pillRow">
                 <span class="pill"><span class="pill__dot" aria-hidden="true"></span> Website extraction</span>
                 <span class="pill"><span class="pill__dot" aria-hidden="true" style="background: var(--accent2)"></span> YouTube transcripts</span>
+                <span class="pill"><span class="pill__dot" aria-hidden="true" style="background: var(--accent3)"></span> Podcast compatibility</span>
                 <span class="pill"><span class="pill__dot" aria-hidden="true" style="background: var(--accent3)"></span> JSON + metrics</span>
               </div>
 
@@ -96,6 +97,11 @@
           <h2>Extraction that’s not naive</h2>
           <p>HTML → normalized text, with fallbacks when a site fights back.</p>
           <div class="small">Cheerio + sanitization + optional Firecrawl</div>
+        </div>
+        <div class="card reveal">
+          <h2>Podcast-friendly</h2>
+          <p>Apple/Spotify/RSS episode pages, plus embedded YouTube podcasts.</p>
+          <div class="small">Prefers published transcripts; Whisper fallback</div>
         </div>
         <div class="card reveal">
           <h2>YouTube transcripts, without drama</h2>
