@@ -132,9 +132,7 @@ function isPodcastHost(url: string): boolean {
     if (host.startsWith('music.amazon.') && parsed.pathname.includes('/podcasts/')) {
       return true
     }
-    return PODCAST_HOST_SUFFIXES.some((suffix) =>
-      host === suffix || host.endsWith(`.${suffix}`)
-    )
+    return PODCAST_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
   } catch {
     return false
   }
@@ -608,18 +606,20 @@ async function buildResultFromFirecrawl({
   const metadata = extractMetadataFromFirecrawl(payload.metadata ?? null)
 
   const title = pickFirstText([jsonLd?.title, metadata.title, htmlMetadata.title])
-  const description = pickFirstText([jsonLd?.description, metadata.description, htmlMetadata.description])
+  const description = pickFirstText([
+    jsonLd?.description,
+    metadata.description,
+    htmlMetadata.description,
+  ])
   const siteName = pickFirstText([metadata.siteName, htmlMetadata.siteName, safeHostname(url)])
 
   const descriptionCandidate = description ? normalizeForPrompt(description) : ''
   const preferDescription =
     descriptionCandidate.length >= MIN_METADATA_DESCRIPTION_CHARACTERS &&
-    (
-      isPodcastJsonLd ||
+    (isPodcastJsonLd ||
       isPodcastHost(url) ||
       normalizedMarkdown.length < MIN_HTML_CONTENT_CHARACTERS ||
-      descriptionCandidate.length >= normalizedMarkdown.length * READABILITY_RELATIVE_THRESHOLD
-    )
+      descriptionCandidate.length >= normalizedMarkdown.length * READABILITY_RELATIVE_THRESHOLD)
   const baseCandidate = preferDescription ? descriptionCandidate : normalizedMarkdown
   const baseContent = selectBaseContent(baseCandidate, transcriptResolution.text)
   if (baseContent.length === 0) {
@@ -711,20 +711,15 @@ async function buildResultFromHtmlDocument({
     (normalized.length < MIN_HTML_CONTENT_CHARACTERS ||
       readabilityText.length >= normalized.length * READABILITY_RELATIVE_THRESHOLD)
   const effectiveNormalized = preferReadability ? readabilityText : normalized
-  const descriptionCandidate = mergedDescription
-    ? normalizeForPrompt(mergedDescription)
-    : ''
+  const descriptionCandidate = mergedDescription ? normalizeForPrompt(mergedDescription) : ''
   const preferDescription =
     descriptionCandidate.length >= MIN_METADATA_DESCRIPTION_CHARACTERS &&
-    (
-      isPodcastJsonLd ||
+    (isPodcastJsonLd ||
       isPodcastHost(url) ||
       (!preferReadability &&
-        (
-          effectiveNormalized.length < MIN_HTML_CONTENT_CHARACTERS ||
-          descriptionCandidate.length >= effectiveNormalized.length * READABILITY_RELATIVE_THRESHOLD
-        ))
-    )
+        (effectiveNormalized.length < MIN_HTML_CONTENT_CHARACTERS ||
+          descriptionCandidate.length >=
+            effectiveNormalized.length * READABILITY_RELATIVE_THRESHOLD)))
   const effectiveNormalizedWithDescription = preferDescription
     ? descriptionCandidate
     : effectiveNormalized
