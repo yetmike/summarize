@@ -18,13 +18,6 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v6
-      - name: Checkout markdansi (local dep)
-        uses: actions/checkout@v6
-        with:
-          repository: steipete/Markdansi
-          path: markdansi
-      - name: Move markdansi to workspace sibling
-        run: mv markdansi ../markdansi
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -35,9 +28,6 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@10.25.0 --activate
-
-      - name: Install markdansi
-        run: pnpm -C ../markdansi install --frozen-lockfile
 
       - name: Install
         run: pnpm install --frozen-lockfile

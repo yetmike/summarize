@@ -73,7 +73,7 @@
     "file-type": "^21.1.1",
     "gpt-tokenizer": "^3.4.0",
     "json5": "^2.2.3",
-    "markdansi": "file:../markdansi",
+    "markdansi": "^0.2.0",
     "mime": "^4.1.0",
     "ora": "^9.0.0",
     "osc-progress": "github:steipete/osc-progress#v0.2.0",
