@@ -376,6 +376,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
 
       let markdownFlushedLen = 0
       let markdownFence = false
+      let renderedStarted = false
 
       const renderLine = (line: string): string => {
         const trimmed = line.trimStart()
@@ -412,9 +413,12 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
         const lines = chunk.split('\n')
         const trailing = lines.pop() ?? ''
         for (const line of lines) {
+          if (!renderedStarted && line.length === 0) continue
+          renderedStarted = true
           deps.stdout.write(renderLine(line))
         }
         if (final && trailing.length > 0) {
+          renderedStarted = true
           deps.stdout.write(renderLine(trailing))
         }
       }
@@ -425,6 +429,10 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
 	          const merged = mergeStreamingChunk(streamed, delta)
 	          streamed = merged.next
 	          if (shouldStreamSummaryToStdout) {
+              if (plainFlushedLen === 0) {
+                const match = streamed.match(/^\n+/)
+                if (match) plainFlushedLen = match[0].length
+              }
 	            const lastNl = streamed.lastIndexOf('\n')
 	            if (lastNl >= 0 && lastNl + 1 > plainFlushedLen) {
 	              if (!cleared) {

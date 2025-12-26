@@ -24,7 +24,7 @@ function createTextStream(chunks: string[]): AsyncIterable<string> {
 
 const streamTextMock = vi.fn(() => {
   return {
-    textStream: createTextStream(['Hello', ' world\n']),
+    textStream: createTextStream(['\nHello', ' world\n']),
     totalUsage: Promise.resolve({
       promptTokens: 100,
       completionTokens: 50,

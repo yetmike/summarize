@@ -6,6 +6,7 @@
 
 - Streaming: render streamed Markdown append-only (newline-bounded) to avoid line loss from in-place redraw.
 - Streaming: render Markdown line-by-line (no full-frame reflows) to prevent duplicated sections in scrollback.
+- Streaming: drop leading blank lines in streamed output (prevents double-spacing after `pnpm` script banners).
 - Streaming: flush newline-bounded output in `--plain` mode to avoid duplication with cumulative stream chunks.
 - Finish line: avoid duplicated `… words` when transcript stats are shown; use `·` separators for transcript summary.
 - Website extraction: strip inline CSS before Readability to avoid extremely slow jsdom stylesheet parsing on some pages.
