@@ -24,6 +24,12 @@ For output language:
 3. Built-in default (`auto` = match source content language)
 
 See `docs/language.md` for supported values.
+
+For prompt:
+
+1. CLI flag `--prompt` / `--prompt-file`
+2. Config file `prompt`
+3. Built-in default prompt
 ## Format
 
 `~/.summarize/config.json`:
@@ -31,7 +37,8 @@ See `docs/language.md` for supported values.
 ```json
 {
   "model": { "id": "google/gemini-3-flash-preview" },
-  "output": { "language": "auto" }
+  "output": { "language": "auto" },
+  "prompt": "Explain like I am five."
 }
 ```
 
@@ -57,6 +64,18 @@ Shorthand (equivalent):
 {
   "model": "auto"
 }
+
+## Prompt
+
+`prompt` replaces the built-in summary instructions (same behavior as `--prompt`).
+
+Example:
+
+```json
+{
+  "prompt": "Explain for a kid. Short sentences. Simple words."
+}
+```
 ```
 
 ## Presets

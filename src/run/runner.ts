@@ -257,6 +257,9 @@ export async function runCli(
     cliFlagPresent,
     cliProviderArg,
   })
+  if (!promptOverride && typeof config?.prompt === 'string' && config.prompt.trim().length > 0) {
+    promptOverride = config.prompt.trim()
+  }
   const lengthInstruction =
     promptOverride && lengthExplicitlySet && lengthArg.kind === 'chars'
       ? `Output is ${lengthArg.maxCharacters.toLocaleString()} characters.`
