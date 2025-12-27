@@ -9,12 +9,26 @@ export type Settings = {
 
 const storageKey = 'settings'
 
+const legacyFontFamilyMap = new Map<string, string>([
+  [
+    '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif',
+    '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+  ],
+])
+
+function normalizeFontFamily(value: unknown): string {
+  if (typeof value !== 'string') return defaultSettings.fontFamily
+  const trimmed = value.trim()
+  if (!trimmed) return defaultSettings.fontFamily
+  return legacyFontFamilyMap.get(trimmed) ?? trimmed
+}
+
 export const defaultSettings: Settings = {
   token: '',
   autoSummarize: true,
   model: 'auto',
   maxChars: 120_000,
-  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
   fontSize: 14,
 }
 
@@ -29,7 +43,7 @@ export async function loadSettings(): Promise<Settings> {
     autoSummarize:
       typeof raw.autoSummarize === 'boolean' ? raw.autoSummarize : defaultSettings.autoSummarize,
     maxChars: typeof raw.maxChars === 'number' ? raw.maxChars : defaultSettings.maxChars,
-    fontFamily: typeof raw.fontFamily === 'string' ? raw.fontFamily : defaultSettings.fontFamily,
+    fontFamily: normalizeFontFamily(raw.fontFamily),
     fontSize: typeof raw.fontSize === 'number' ? raw.fontSize : defaultSettings.fontSize,
   }
 }

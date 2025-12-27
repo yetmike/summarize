@@ -70,6 +70,21 @@ let streamedAnyNonWhitespace = false
 let rememberedUrl = false
 let streaming = false
 
+function ensureSelectValue(select: HTMLSelectElement, value: string): string {
+  const normalized = value.trim()
+  if (!normalized) return select.options[0]?.value ?? ''
+
+  if (!Array.from(select.options).some((o) => o.value === normalized)) {
+    const label = normalized.split(',')[0]?.replace(/["']/g, '').trim() || 'Custom'
+    const option = document.createElement('option')
+    option.value = normalized
+    option.textContent = `Custom (${label})`
+    select.append(option)
+  }
+
+  return normalized
+}
+
 function setStatus(text: string) {
   statusEl.textContent = text
   const isError = text.toLowerCase().startsWith('error:') || text.toLowerCase().includes(' error')
@@ -262,11 +277,11 @@ sizeEl.addEventListener('input', () => {
 
 void (async () => {
   const s = await loadSettings()
-  fontEl.value = s.fontFamily
+  fontEl.value = ensureSelectValue(fontEl, s.fontFamily)
   sizeEl.value = String(s.fontSize)
   modelEl.value = s.model
   autoEl.checked = s.autoSummarize
-  applyTypography(s.fontFamily, s.fontSize)
+  applyTypography(fontEl.value, s.fontSize)
   toggleDrawer(false)
   send({ type: 'panel:ready' })
 })()
