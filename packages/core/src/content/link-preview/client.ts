@@ -1,12 +1,12 @@
 import { fetchLinkContent } from './content/index.js'
 import type { ExtractedLinkContent, FetchLinkContentOptions } from './content/types.js'
+import type { TranscriptCache } from '../cache/types.js'
 import type {
   ConvertHtmlToMarkdown,
   LinkPreviewDeps,
   LinkPreviewProgressEvent,
   ResolveTwitterCookies,
   ScrapeWithFirecrawl,
-  TranscriptCache,
 } from './deps.js'
 
 export interface LinkPreviewClient {

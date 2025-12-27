@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { TranscriptCache } from '../packages/core/src/content/link-preview/deps.js'
+import type { TranscriptCache } from '../packages/core/src/content/cache/types.js'
 import {
   DEFAULT_TTL_MS,
   mapCachedSource,

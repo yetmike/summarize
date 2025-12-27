@@ -1,4 +1,4 @@
-import type { TranscriptCache } from '../link-preview/deps.js'
+import type { TranscriptCache } from '../cache/types.js'
 import type {
   CacheMode,
   TranscriptDiagnostics,

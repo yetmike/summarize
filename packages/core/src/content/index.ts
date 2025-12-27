@@ -17,9 +17,13 @@ export type {
   LinkPreviewProgressEvent,
   ReadTweetWithBird,
   ScrapeWithFirecrawl,
-  TranscriptCache,
 } from './link-preview/deps.js'
 export { ProgressKind } from './link-preview/deps.js'
+export type {
+  TranscriptCache,
+  TranscriptCacheGetResult,
+  TranscriptCacheSetArgs,
+} from './cache/types.js'
 export {
   CACHE_MODES,
   type CacheMode,
