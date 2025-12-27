@@ -21,11 +21,13 @@ import { fetchTranscriptWithYtDlp } from '../packages/core/src/content/transcrip
 const mockSpawnSuccess = () => {
   spawnMock.mockImplementation(() => {
     const proc = new EventEmitter() as unknown as {
+      stdout?: PassThrough
       stderr?: PassThrough
       kill?: (signal?: string) => void
       on: (event: string, listener: (...args: unknown[]) => void) => void
       emit: (event: string, ...args: unknown[]) => void
     }
+    proc.stdout = new PassThrough()
     proc.stderr = new PassThrough()
     proc.kill = vi.fn()
     process.nextTick(() => proc.emit('close', 0, null))
@@ -116,6 +118,52 @@ describe('yt-dlp transcript helper', () => {
 
     const args = spawnMock.mock.calls[0]?.[1] ?? []
     expect(args).toContain('--no-playlist')
+  })
+
+  it('emits download progress events from yt-dlp output', async () => {
+    spawnMock.mockImplementation(() => {
+      const proc = new EventEmitter() as unknown as {
+        stdout?: PassThrough
+        stderr?: PassThrough
+        kill?: (signal?: string) => void
+        on: (event: string, listener: (...args: unknown[]) => void) => void
+        emit: (event: string, ...args: unknown[]) => void
+      }
+      proc.stdout = new PassThrough()
+      proc.stderr = new PassThrough()
+      proc.kill = vi.fn()
+      process.nextTick(() => {
+        proc.stdout?.write('progress:1024|2048|0\n')
+        proc.stdout?.write('progress:2048||4096\n')
+        proc.stdout?.end()
+        proc.emit('close', 0, null)
+      })
+      return proc
+    })
+    ;(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ text: 'OpenAI transcript' }), { status: 200 })
+    )
+
+    const events: Array<{
+      kind: string
+      downloadedBytes?: number
+      totalBytes?: number | null
+    }> = []
+    await fetchTranscriptWithYtDlp({
+      ytDlpPath: '/usr/bin/yt-dlp',
+      openaiApiKey: 'OPENAI',
+      falApiKey: null,
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+      onProgress: (event) => events.push(event as { kind: string }),
+    })
+
+    const progress = events.filter((event) => event.kind === 'transcript-media-download-progress')
+    expect(progress.length).toBeGreaterThan(0)
+    expect(progress[0]?.downloadedBytes).toBe(1024)
+    expect(progress[0]?.totalBytes).toBe(2048)
+    expect(
+      progress.some((event) => event.downloadedBytes === 2048 && event.totalBytes === 4096)
+    ).toBe(true)
   })
 
   it('uses OpenAI when available', async () => {

@@ -12,6 +12,10 @@ export default defineConfig({
         replacement: resolve(rootDir, 'packages/core/src/content/index.ts'),
       },
       {
+        find: /^@steipete\/summarize-core\/content\/url$/,
+        replacement: resolve(rootDir, 'packages/core/src/content/url.ts'),
+      },
+      {
         find: /^@steipete\/summarize-core\/prompts$/,
         replacement: resolve(rootDir, 'packages/core/src/prompts/index.ts'),
       },

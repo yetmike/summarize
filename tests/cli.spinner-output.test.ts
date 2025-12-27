@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
@@ -13,6 +13,22 @@ const streamTextMock = vi.fn(() => {
 vi.mock('ai', () => ({
   streamText: streamTextMock,
 }))
+
+const createOpenAIMock = vi.fn(() => {
+  return (_modelId: string) => ({})
+})
+
+vi.mock('@ai-sdk/openai', () => ({
+  createOpenAI: createOpenAIMock,
+}))
+
+function createTextStream(chunks: string[]): AsyncIterable<string> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield chunk
+    },
+  }
+}
 
 function collectStream({ isTTY }: { isTTY: boolean }) {
   let text = ''
@@ -203,4 +219,71 @@ describe('cli spinner output', () => {
     const rawErr = stderr.getText()
     expect(rawErr).toContain('\u001b]9;4;3;;Summarizing')
   }, 15_000)
+
+  it('clears the "Summarizing" spinner line before streaming output', async () => {
+    streamTextMock.mockImplementationOnce(() => {
+      return {
+        textStream: createTextStream(['\nHello', ' world\n']),
+        totalUsage: Promise.resolve({
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+        }),
+      }
+    })
+
+    const root = mkdtempSync(join(tmpdir(), 'summarize-spinner-stream-'))
+    const cacheDir = join(root, '.summarize', 'cache')
+    mkdirSync(cacheDir, { recursive: true })
+    writeFileSync(
+      join(cacheDir, 'litellm-model_prices_and_context_window.json'),
+      JSON.stringify({
+        'gpt-5.2': { input_cost_per_token: 0.00000175, output_cost_per_token: 0.000014 },
+      }),
+      'utf8'
+    )
+    writeFileSync(
+      join(cacheDir, 'litellm-model_prices_and_context_window.meta.json'),
+      JSON.stringify({ fetchedAtMs: Date.now() }),
+      'utf8'
+    )
+
+    const globalFetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('unexpected LiteLLM catalog fetch')
+    })
+
+    const stdout = collectStream({ isTTY: true })
+    const stderr = collectStream({ isTTY: true })
+    try {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.url
+        if (url === 'https://example.com') {
+          return new Response('<html><body><h1>Example</h1></body></html>', {
+            status: 200,
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+          })
+        }
+        throw new Error(`Unexpected fetch call: ${url}`)
+      })
+
+      await runCli(
+        ['--model', 'openai/gpt-5.2', '--stream', 'on', '--timeout', '2s', 'https://example.com'],
+        {
+          env: { HOME: root, OPENAI_API_KEY: 'test', TERM: 'xterm-256color' },
+          fetch: fetchMock as unknown as typeof fetch,
+          stdout: stdout.stream,
+          stderr: stderr.stream,
+        }
+      )
+    } finally {
+      globalFetchSpy.mockRestore()
+    }
+
+    const rawErr = stderr.getText()
+    expect(rawErr).toContain('Fetching website')
+    expect(rawErr).toContain('\r\u001b[2K')
+
+    const visibleErr = applyCarriageReturnAndClearLine(stripCsi(stripOsc(rawErr)))
+    expect(visibleErr).not.toMatch(/Fetching website/)
+  })
 })
