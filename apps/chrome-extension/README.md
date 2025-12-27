@@ -1,6 +1,8 @@
 # Summarize (Chrome Extension)
 
-Chrome Side Panel UI for `summarize` via the local daemon (`summarize daemon …`).
+Chrome Side Panel UI for `summarize` (streams summaries into a real Chrome Side Panel).
+
+Docs + setup: `https://summarize.sh`
 
 ## Build
 
@@ -17,4 +19,3 @@ Chrome Side Panel UI for `summarize` via the local daemon (`summarize daemon …
 
 - Open side panel → “Setup” shows a token + install command.
 - Run the command in Terminal (installs LaunchAgent + daemon).
-

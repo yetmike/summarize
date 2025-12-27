@@ -5,6 +5,7 @@ export default defineConfig({
   manifest: {
     name: 'Summarize',
     description: 'Summarize what you see. Articles, threads, YouTube, podcasts — anything.',
+    homepage_url: 'https://summarize.sh',
     version: '0.1.0',
     icons: {
       16: 'assets/icon-16.png',
