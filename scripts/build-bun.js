@@ -5,9 +5,10 @@
 //
 
 // Don't use Bun shell ($) as it breaks bytecode compilation.
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, statSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const projectRoot = join(import.meta.dir, '..')
@@ -21,6 +22,29 @@ function run(cmd, args, opts = {}) {
   if (result.status !== 0) {
     throw new Error(`${cmd} failed with exit code ${result.status}`)
   }
+}
+
+function runCaptureAsync(cmd, args, opts = {}) {
+  const printable = [cmd, ...args].map((x) => (/\s/.test(x) ? JSON.stringify(x) : x)).join(' ')
+  console.log(`+ ${printable}`)
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...opts,
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+    child.on('error', reject)
+    child.on('close', (code) => {
+      resolve({ status: code ?? 0, stdout, stderr })
+    })
+  })
 }
 
 function readPackageVersion() {
@@ -94,7 +118,55 @@ function buildMacosArm64({ version }) {
   return { binary: outPath, tarPath }
 }
 
-function main() {
+async function runE2E(binary) {
+  if (!globalThis.Bun?.serve) {
+    throw new Error('Bun runtime missing; run with bun.')
+  }
+
+  console.log('\n🧪 Bun E2E…')
+  const html = '<!doctype html><html><body><h1>Hello Bun</h1><p>World</p></body></html>'
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch() {
+      return new Response(html, { headers: { 'Content-Type': 'text/html' } })
+    },
+  })
+  const url = `http://127.0.0.1:${server.port}/`
+  const cacheHome = mkdtempSync(join(tmpdir(), 'summarize-bun-e2e-'))
+
+  try {
+    const result = await runCaptureAsync(
+      binary,
+      ['--extract', '--json', '--metrics', 'off', '--timeout', '5s', url],
+      {
+      env: { ...process.env, HOME: cacheHome },
+      }
+    )
+    if (result.status !== 0) {
+      throw new Error(`bun e2e failed: ${result.stderr ?? ''}`)
+    }
+    const stdout = typeof result.stdout === 'string' ? result.stdout : ''
+    let payload = null
+    try {
+      payload = JSON.parse(stdout)
+    } catch {
+      throw new Error(`bun e2e invalid json: ${stdout.slice(0, 200)}`)
+    }
+    const content = payload?.extracted?.content ?? ''
+    if (!content.includes('Hello Bun')) {
+      throw new Error('bun e2e missing extracted content')
+    }
+    if (!existsSync(join(cacheHome, '.summarize', 'cache.sqlite'))) {
+      throw new Error('bun e2e missing cache sqlite')
+    }
+    console.log('✅ Bun E2E ok')
+  } finally {
+    server.stop()
+  }
+}
+
+async function main() {
   console.log('🚀 summarize Bun builder')
   console.log('========================')
 
@@ -110,6 +182,7 @@ function main() {
     console.log('\n🧪 Smoke…')
     run(binary, ['--version'])
     run(binary, ['--help'])
+    await runE2E(binary)
   }
 
   console.log(`\n✨ Done. dist: ${distDir}`)
@@ -122,4 +195,7 @@ process.env.BUN_JSC_useBBQJIT = '1'
 process.env.BUN_JSC_useDFGJIT = '1'
 process.env.BUN_JSC_useFTLJIT = '1'
 
-main()
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
+})

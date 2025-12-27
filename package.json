@@ -42,6 +42,7 @@
     "build:cli": "node scripts/build-cli.mjs",
     "build:bun": "bun scripts/build-bun.js",
     "build:bun:test": "bun scripts/build-bun.js --test",
+    "docs:list": "tsx scripts/docs-list.ts",
     "prepare": "pnpm build",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "summarize": "tsx src/cli.ts",
