@@ -48,7 +48,8 @@ type SessionEvent =
 type Session = {
   id: string
   createdAtMs: number
-  buffer: string[]
+  buffer: Array<{ event: SessionEvent; bytes: number }>
+  bufferBytes: number
   done: boolean
   clients: Set<http.ServerResponse>
   lastMeta: {
@@ -140,20 +141,31 @@ function createSession(): Session {
     id: randomUUID(),
     createdAtMs: Date.now(),
     buffer: [],
+    bufferBytes: 0,
     done: false,
     clients: new Set(),
     lastMeta: { model: null, modelLabel: null, inputSummary: null, summaryFromCache: null },
   }
 }
 
+const MAX_SESSION_BUFFER_EVENTS = 2000
+const MAX_SESSION_BUFFER_BYTES = 512 * 1024
+
 function pushToSession(session: Session, evt: SessionEvent) {
   const encoded = sseEncode(evt)
   for (const res of session.clients) {
     res.write(encoded)
   }
-  session.buffer.push(encoded)
-  if (session.buffer.length > 2000) {
-    session.buffer.splice(0, session.buffer.length - 2000)
+  const bytes = Buffer.byteLength(encoded)
+  session.buffer.push({ event: evt, bytes })
+  session.bufferBytes += bytes
+  while (
+    session.buffer.length > MAX_SESSION_BUFFER_EVENTS ||
+    session.bufferBytes > MAX_SESSION_BUFFER_BYTES
+  ) {
+    const removed = session.buffer.shift()
+    if (!removed) break
+    session.bufferBytes -= removed.bytes
   }
   if (evt.event === 'done' || evt.event === 'error') {
     session.done = true
@@ -457,8 +469,8 @@ export async function runDaemonServer({
         })
         session.clients.add(res)
 
-        for (const line of session.buffer) {
-          res.write(line)
+        for (const entry of session.buffer) {
+          res.write(sseEncode(entry.event))
         }
         if (session.done) {
           res.end()
