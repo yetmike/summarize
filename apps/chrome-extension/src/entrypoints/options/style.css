@@ -480,6 +480,15 @@ label > span {
   font-family: var(--mono);
 }
 
+.hint a {
+  color: color-mix(in srgb, var(--text) 80%, var(--muted));
+  text-decoration: none;
+}
+
+.hint a:hover {
+  text-decoration: underline;
+}
+
 input[type="text"],
 input[type="number"],
 textarea,
