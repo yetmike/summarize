@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-const headless = process.env.HEADLESS === '1'
+const headless = process.env.HEADLESS !== '0'
 
 export default defineConfig({
   testDir: './tests',

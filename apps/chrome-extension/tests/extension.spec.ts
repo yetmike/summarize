@@ -45,10 +45,19 @@ async function launchExtension(): Promise<ExtensionHarness> {
   }
 
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'summarize-ext-'))
-  const headless = process.env.HEADLESS === '1'
+  // Chromium extensions (MV3 service workers) are not reliably supported in true headless mode.
+  // Default: keep UI out of the way; set SHOW_UI=1 for debugging.
+  const showUi = process.env.SHOW_UI === '1'
+  const args = [
+    ...(showUi
+      ? []
+      : ['--start-minimized', '--window-position=-10000,-10000', '--window-size=10,10']),
+    `--disable-extensions-except=${extensionPath}`,
+    `--load-extension=${extensionPath}`,
+  ]
   const context = await chromium.launchPersistentContext(userDataDir, {
-    headless,
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    headless: false,
+    args,
   })
 
   const background =
