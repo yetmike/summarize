@@ -14,6 +14,7 @@ import {
   mergeStreamingChunk,
 } from './streaming.js'
 import { resolveModelIdForLlmCall, summarizeWithModelId } from './summary-llm.js'
+import { type StreamOutputMode, createStreamOutputGate } from './stream-output.js'
 import { isRichTty, markdownRenderWidth, supportsColor } from './terminal.js'
 import type { ModelAttempt, ModelMeta } from './types.js'
 
@@ -26,7 +27,7 @@ export type SummaryEngineDeps = {
   timeoutMs: number
   retries: number
   streamingEnabled: boolean
-  streamingOutputMode?: 'line' | 'delta'
+  streamingOutputMode?: StreamOutputMode
   plain: boolean
   verbose: boolean
   verboseColor: boolean
@@ -391,7 +392,6 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
       deps.clearProgressForStdout()
       getLastStreamError = streamResult.lastError
       let streamed = ''
-      let plainFlushedLen = 0
       let streamedRaw = ''
       const liveWidth = markdownRenderWidth(deps.stdout, deps.env)
       let wroteLeadingBlankLine = false
@@ -409,52 +409,22 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
           })
         : null
 
+      const outputGate = shouldStreamSummaryToStdout
+        ? createStreamOutputGate({
+            stdout: deps.stdout,
+            clearProgressForStdout: deps.clearProgressForStdout,
+            outputMode: deps.streamingOutputMode ?? 'line',
+            richTty: isRichTty(deps.stdout),
+          })
+        : null
+
       try {
-        let cleared = false
-        const outputMode = deps.streamingOutputMode ?? 'line'
         for await (const delta of streamResult.textStream) {
           const prevStreamed = streamed
           const merged = mergeStreamingChunk(streamed, delta)
           streamed = merged.next
-          if (shouldStreamSummaryToStdout) {
-            if (plainFlushedLen === 0) {
-              const match = streamed.match(/^\n+/)
-              if (match) plainFlushedLen = match[0].length
-            }
-            if (outputMode === 'line') {
-              const lastNl = streamed.lastIndexOf('\n')
-              if (lastNl >= 0 && lastNl + 1 > plainFlushedLen) {
-                if (!cleared) {
-                  deps.clearProgressForStdout()
-                  if (isRichTty(deps.stdout)) deps.stdout.write('\n')
-                  cleared = true
-                }
-                deps.clearProgressForStdout()
-                deps.stdout.write(streamed.slice(plainFlushedLen, lastNl + 1))
-                plainFlushedLen = lastNl + 1
-              }
-            } else {
-              const isAppendOnly = streamed.startsWith(prevStreamed)
-              if (streamed.length > plainFlushedLen && isAppendOnly) {
-                if (!cleared) {
-                  deps.clearProgressForStdout()
-                  if (isRichTty(deps.stdout)) deps.stdout.write('\n')
-                  cleared = true
-                }
-                deps.clearProgressForStdout()
-                deps.stdout.write(streamed.slice(plainFlushedLen))
-                plainFlushedLen = streamed.length
-              } else if (!isAppendOnly) {
-                if (!cleared) {
-                  deps.clearProgressForStdout()
-                  if (isRichTty(deps.stdout)) deps.stdout.write('\n')
-                  cleared = true
-                }
-                deps.clearProgressForStdout()
-                deps.stdout.write(streamed)
-                plainFlushedLen = streamed.length
-              }
-            }
+          if (shouldStreamSummaryToStdout && outputGate) {
+            outputGate.handleChunk(streamed, prevStreamed)
             continue
           }
 
@@ -468,7 +438,6 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
               } else {
                 deps.stdout.write(out)
               }
-              cleared = true
             }
           }
         }
@@ -501,12 +470,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
       summary = streamed
       if (shouldStreamSummaryToStdout) {
         const finalText = streamedRaw || streamed
-        const remaining = plainFlushedLen < finalText.length ? finalText.slice(plainFlushedLen) : ''
-        if (remaining) deps.stdout.write(remaining)
-        const endedWithNewline = remaining
-          ? remaining.endsWith('\n')
-          : plainFlushedLen > 0 && finalText[plainFlushedLen - 1] === '\n'
-        if (!endedWithNewline) deps.stdout.write('\n')
+        outputGate?.finalize(finalText)
         summaryAlreadyPrinted = true
       }
     }
