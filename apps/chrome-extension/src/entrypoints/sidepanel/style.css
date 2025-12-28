@@ -5,6 +5,7 @@
   --ui-link: color-mix(in srgb, var(--accent) 82%, var(--text));
 
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --ui-font-size: 14px;
   --font-size: 14px;
 }
 
@@ -457,7 +458,7 @@ body {
   margin: 0;
   color: var(--text);
   font-family: var(--font-body);
-  font-size: var(--font-size);
+  font-size: var(--ui-font-size);
   min-height: 100vh;
   background: transparent;
 }
@@ -486,6 +487,8 @@ header {
 
 .title {
   font-weight: 800;
+  font-size: 13px;
+  line-height: 1.2;
   letter-spacing: 0.2px;
   color: var(--text);
   width: 100%;
@@ -1064,6 +1067,7 @@ header.isError .progressFill {
 
 main {
   padding: 12px;
+  font-size: var(--font-size);
 }
 
 @keyframes progressBounce {
