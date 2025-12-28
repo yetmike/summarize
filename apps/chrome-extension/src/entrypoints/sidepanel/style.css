@@ -639,16 +639,21 @@ button.ghost:hover {
 }
 
 label.length.mini {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text);
-  font-size: 12px;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 label.length.mini .combo {
   display: flex;
   gap: 8px;
+  width: 100%;
+}
+
+label.length.mini .picker {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 label.length.mini .pickerTrigger {

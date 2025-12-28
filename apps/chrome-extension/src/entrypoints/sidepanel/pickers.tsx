@@ -201,7 +201,7 @@ function LengthField({
 
   return (
     <label className={variant === 'mini' ? 'length mini' : 'length wide'} {...api.getLabelProps()}>
-      {variant !== 'mini' ? <span className="pickerTitle">Length</span> : null}
+      <span className="pickerTitle">Length</span>
       <div className="combo">
         <div className="picker" {...api.getRootProps()}>
           <button className="pickerTrigger" {...api.getTriggerProps()}>
