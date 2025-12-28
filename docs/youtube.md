@@ -8,10 +8,11 @@ read_when:
 
 YouTube URLs use transcript-first extraction.
 
-## `--youtube auto|web|apify|yt-dlp`
+## `--youtube auto|web|no-auto|apify|yt-dlp`
 
-- `auto` (default): try `youtubei` → `captionTracks` → Apify (if token exists) → `yt-dlp` (if configured)
+- `auto` (default): try `youtubei` → `captionTracks` → `yt-dlp` (if configured) → Apify (if token exists)
 - `web`: try `youtubei` → `captionTracks` only
+- `no-auto`: try creator captions only (skip auto-generated/ASR) → `yt-dlp` (if configured)
 - `apify`: Apify only
 - `yt-dlp`: download audio + transcribe (local `whisper.cpp` preferred; OpenAI/FAL fallback)
 

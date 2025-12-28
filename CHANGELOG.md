@@ -19,6 +19,7 @@
 - Daemon API: `mode: "auto"` accepts both `url` + extracted page `text`; daemon picks the best pipeline (YouTube/podcasts/media → URL, otherwise prefer visible page text) with a fallback attempt.
 - Core: expose lightweight URL helpers at `@steipete/summarize-core/content/url` (YouTube/Twitter/podcast/direct-media detection).
 - X/Twitter: auto-transcribe tweet videos via `yt-dlp`, using browser cookies (Chrome → Safari → Firefox) when available; set `TWITTER_COOKIE_SOURCE` / `TWITTER_*_PROFILE` to control cookie extraction order.
+- YouTube: add `--youtube no-auto` to skip auto-generated captions and prefer creator-uploaded captions; fall back to `yt-dlp` transcription (thanks @dougvk!).
 - Config: add `prompt` to replace the default summary instructions (same behavior as `--prompt`).
 - Cache: add SQLite cache for transcripts/extractions/summaries with `--no-cache` / `--clear-cache` + config.
 - CLI: add transcript → Markdown formatting via `--extract --format md --markdown-mode llm` (thanks @dougvk!).
