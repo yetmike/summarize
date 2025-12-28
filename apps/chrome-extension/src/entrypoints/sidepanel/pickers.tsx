@@ -138,6 +138,11 @@ function LengthField({
   const [presetValue, setPresetValue] = useState(resolved.presetValue)
   const [customValue, setCustomValue] = useState(resolved.customValue)
   const portalRoot = getOverlayRoot()
+  const labelProps = api.getLabelProps()
+  const resolvedLabelProps =
+    presetValue === 'custom'
+      ? { ...labelProps, htmlFor: 'lengthCustom', onClick: undefined }
+      : labelProps
 
   useEffect(() => {
     setPresetValue(resolved.presetValue)
@@ -200,7 +205,7 @@ function LengthField({
   )
 
   return (
-    <label className={variant === 'mini' ? 'length mini' : 'length wide'} {...api.getLabelProps()}>
+    <label className={variant === 'mini' ? 'length mini' : 'length wide'} {...resolvedLabelProps}>
       <span className="pickerTitle">Length</span>
       <div className="combo">
         <div className="picker" {...api.getRootProps()}>
