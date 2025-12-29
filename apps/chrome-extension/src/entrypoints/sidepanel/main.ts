@@ -48,6 +48,7 @@ const drawerToggleBtn = byId<HTMLButtonElement>('drawerToggle')
 const refreshBtn = byId<HTMLButtonElement>('refresh')
 const advancedBtn = byId<HTMLButtonElement>('advanced')
 const autoToggleRoot = byId<HTMLDivElement>('autoToggle')
+const hoverToggleRoot = byId<HTMLDivElement>('hoverToggle')
 const lengthRoot = byId<HTMLDivElement>('lengthRoot')
 const pickersRoot = byId<HTMLDivElement>('pickersRoot')
 const sizeEl = byId<HTMLInputElement>('size')
@@ -68,6 +69,7 @@ const panelState: PanelState = {
 }
 let drawerAnimation: Animation | null = null
 let autoValue = false
+let hoverSummariesValue = defaultSettings.hoverSummaries
 
 const isStreaming = () => panelState.phase === 'connecting' || panelState.phase === 'streaming'
 
@@ -394,6 +396,16 @@ const autoToggle = mountCheckbox(autoToggleRoot, {
   onCheckedChange: (checked) => {
     autoValue = checked
     send({ type: 'panel:setAuto', value: checked })
+  },
+})
+
+const hoverToggle = mountCheckbox(hoverToggleRoot, {
+  id: 'sidepanel-hover',
+  label: 'Hover summaries',
+  checked: hoverSummariesValue,
+  onCheckedChange: (checked) => {
+    hoverSummariesValue = checked
+    void patchSettings({ hoverSummaries: checked })
   },
 })
 
@@ -853,6 +865,7 @@ void (async () => {
   const s = await loadSettings()
   sizeEl.value = String(s.fontSize)
   autoValue = s.autoSummarize
+  hoverSummariesValue = s.hoverSummaries
   autoToggle.update({
     id: 'sidepanel-auto',
     label: 'Auto summarize',
@@ -860,6 +873,15 @@ void (async () => {
     onCheckedChange: (checked) => {
       autoValue = checked
       send({ type: 'panel:setAuto', value: checked })
+    },
+  })
+  hoverToggle.update({
+    id: 'sidepanel-hover',
+    label: 'Hover summaries',
+    checked: hoverSummariesValue,
+    onCheckedChange: (checked) => {
+      hoverSummariesValue = checked
+      void patchSettings({ hoverSummaries: checked })
     },
   })
   pickerSettings = {

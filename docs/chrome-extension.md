@@ -93,10 +93,10 @@ The daemon decides the best pipeline:
   - Language: `auto` (match source) or a tag like `en`, `de`, `pt-BR` (or free-form like “German”).
   - Prompt override (advanced): custom instruction prefix (context + content still appended).
   - Auto summarize: on/off.
+  - Hover summaries: on/off (side panel drawer, default off).
   - Typography: font family (dropdown + custom), font size (slider).
 - Advanced overrides (collapsed by default; click the section title to expand).
   - Leave blank to use daemon config/defaults; set a value to override.
-  - Hover summaries: show a tooltip summary when hovering links (experimental, default off).
   - Pipeline mode: `page|url` (default auto).
   - Firecrawl: `off|auto|always`.
   - Markdown mode: `readability|llm|auto|off`.

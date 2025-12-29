@@ -26,7 +26,6 @@ const autoToggleRoot = byId<HTMLDivElement>('autoToggle')
 const maxCharsEl = byId<HTMLInputElement>('maxChars')
 const advancedFieldsEl = byId<HTMLDivElement>('advancedFields')
 const advancedToggleEl = byId<HTMLButtonElement>('advancedToggle')
-const hoverSummariesToggleRoot = byId<HTMLDivElement>('hoverSummariesToggle')
 const requestModeEl = byId<HTMLSelectElement>('requestMode')
 const firecrawlModeEl = byId<HTMLSelectElement>('firecrawlMode')
 const markdownModeEl = byId<HTMLSelectElement>('markdownMode')
@@ -42,7 +41,6 @@ const buildInfoEl = document.getElementById('buildInfo')
 const daemonStatusEl = byId<HTMLDivElement>('daemonStatus')
 
 let autoValue = defaultSettings.autoSummarize
-let hoverSummariesValue = defaultSettings.hoverSummaries
 let advancedOpen = false
 
 const setStatus = (text: string) => {
@@ -316,15 +314,6 @@ const autoToggle = mountCheckbox(autoToggleRoot, {
   },
 })
 
-const hoverSummariesToggle = mountCheckbox(hoverSummariesToggleRoot, {
-  id: 'options-hover',
-  label: 'Enable hover summaries',
-  checked: hoverSummariesValue,
-  onCheckedChange: (checked) => {
-    hoverSummariesValue = checked
-  },
-})
-
 const updateAdvancedVisibility = () => {
   advancedFieldsEl.hidden = !advancedOpen
   advancedToggleEl.setAttribute('aria-expanded', advancedOpen ? 'true' : 'false')
@@ -344,21 +333,12 @@ async function load() {
   }
   promptOverrideEl.value = s.promptOverride
   autoValue = s.autoSummarize
-  hoverSummariesValue = s.hoverSummaries
   autoToggle.update({
     id: 'options-auto',
     label: 'Auto-summarize when panel is open',
     checked: autoValue,
     onCheckedChange: (checked) => {
       autoValue = checked
-    },
-  })
-  hoverSummariesToggle.update({
-    id: 'options-hover',
-    label: 'Enable hover summaries',
-    checked: hoverSummariesValue,
-    onCheckedChange: (checked) => {
-      hoverSummariesValue = checked
     },
   })
   maxCharsEl.value = String(s.maxChars)
@@ -432,7 +412,7 @@ formEl.addEventListener('submit', (e) => {
       }),
       promptOverride: promptOverrideEl.value || defaultSettings.promptOverride,
       autoSummarize: autoValue,
-      hoverSummaries: hoverSummariesValue,
+      hoverSummaries: current.hoverSummaries,
       maxChars: Number(maxCharsEl.value) || defaultSettings.maxChars,
       requestMode: requestModeEl.value || defaultSettings.requestMode,
       firecrawlMode: firecrawlModeEl.value || defaultSettings.firecrawlMode,
