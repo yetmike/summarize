@@ -1,0 +1,145 @@
+import type { Context } from '@mariozechner/pi-ai'
+import { completeSimple } from '@mariozechner/pi-ai'
+import type { DocumentPrompt } from '../prompt.js'
+import type { LlmTokenUsage } from '../types.js'
+import { normalizeTokenUsage } from '../usage.js'
+import { resolveGoogleModel } from './models.js'
+import { bytesToBase64, resolveBaseUrlOverride } from './shared.js'
+
+function normalizeGoogleUsage(raw: unknown): LlmTokenUsage | null {
+  if (!raw || typeof raw !== 'object') return null
+  const usage = raw as {
+    promptTokenCount?: unknown
+    candidatesTokenCount?: unknown
+    totalTokenCount?: unknown
+  }
+  const promptTokens =
+    typeof usage.promptTokenCount === 'number' && Number.isFinite(usage.promptTokenCount)
+      ? usage.promptTokenCount
+      : null
+  const completionTokens =
+    typeof usage.candidatesTokenCount === 'number' &&
+    Number.isFinite(usage.candidatesTokenCount)
+      ? usage.candidatesTokenCount
+      : null
+  const totalTokens =
+    typeof usage.totalTokenCount === 'number' && Number.isFinite(usage.totalTokenCount)
+      ? usage.totalTokenCount
+      : typeof promptTokens === 'number' && typeof completionTokens === 'number'
+        ? promptTokens + completionTokens
+        : null
+  if (promptTokens === null && completionTokens === null && totalTokens === null) return null
+  return { promptTokens, completionTokens, totalTokens }
+}
+
+export async function completeGoogleText({
+  modelId,
+  apiKey,
+  context,
+  temperature,
+  maxOutputTokens,
+  signal,
+  googleBaseUrlOverride,
+}: {
+  modelId: string
+  apiKey: string
+  context: Context
+  temperature?: number
+  maxOutputTokens?: number
+  signal: AbortSignal
+  googleBaseUrlOverride?: string | null
+}): Promise<{ text: string; usage: LlmTokenUsage | null }> {
+  const model = resolveGoogleModel({ modelId, context, googleBaseUrlOverride })
+  const result = await completeSimple(model, context, {
+    ...(typeof temperature === 'number' ? { temperature } : {}),
+    ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
+    apiKey,
+    signal,
+  })
+  const text = result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('')
+    .trim()
+  if (!text) throw new Error(`LLM returned an empty summary (model google/${modelId}).`)
+  return { text, usage: normalizeTokenUsage(result.usage) }
+}
+
+export async function completeGoogleDocument({
+  modelId,
+  apiKey,
+  prompt,
+  maxOutputTokens,
+  temperature,
+  timeoutMs,
+  fetchImpl,
+  googleBaseUrlOverride,
+}: {
+  modelId: string
+  apiKey: string
+  prompt: DocumentPrompt
+  maxOutputTokens?: number
+  temperature?: number
+  timeoutMs: number
+  fetchImpl: typeof fetch
+  googleBaseUrlOverride?: string | null
+}): Promise<{ text: string; usage: LlmTokenUsage | null }> {
+  const baseUrl =
+    resolveBaseUrlOverride(googleBaseUrlOverride) ??
+    'https://generativelanguage.googleapis.com/v1beta'
+  const url = new URL(`${baseUrl.replace(/\/$/, '')}/models/${modelId}:generateContent`)
+  url.searchParams.set('key', apiKey)
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const payload = {
+    contents: [
+      {
+        parts: [
+          {
+            inline_data: {
+              mime_type: prompt.document.mediaType,
+              data: bytesToBase64(prompt.document.bytes),
+            },
+          },
+          { text: prompt.text },
+        ],
+      },
+    ],
+    ...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
+    ...(typeof temperature === 'number' ? { temperature } : {}),
+  }
+
+  try {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    const bodyText = await response.text()
+    if (!response.ok) {
+      const error = new Error(`Google API error (${response.status}).`)
+      ;(error as { statusCode?: number }).statusCode = response.status
+      ;(error as { responseBody?: string }).responseBody = bodyText
+      throw error
+    }
+
+    const data = JSON.parse(bodyText) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+      usageMetadata?: unknown
+    }
+    const text = (data.candidates ?? [])
+      .flatMap((candidate) => candidate.content?.parts ?? [])
+      .map((part) => (typeof part.text === 'string' ? part.text : ''))
+      .join('')
+      .trim()
+    if (!text) {
+      throw new Error(`LLM returned an empty summary (model google/${modelId}).`)
+    }
+    return { text, usage: normalizeGoogleUsage(data.usageMetadata) }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
