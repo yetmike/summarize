@@ -52,6 +52,17 @@ export type GoogleConfig = {
   baseUrl?: string
 }
 
+export type LoggingLevel = 'debug' | 'info' | 'warn' | 'error'
+export type LoggingFormat = 'json' | 'pretty'
+export type LoggingConfig = {
+  enabled?: boolean
+  level?: LoggingLevel
+  format?: LoggingFormat
+  file?: string
+  maxMb?: number
+  maxFiles?: number
+}
+
 export type XaiConfig = {
   /**
    * Override the xAI API base URL (e.g. a proxy).
@@ -142,6 +153,7 @@ export type SummarizeConfig = {
   anthropic?: AnthropicConfig
   google?: GoogleConfig
   xai?: XaiConfig
+  logging?: LoggingConfig
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -198,6 +210,32 @@ function parseStringArray(raw: unknown, path: string, label: string): string[] {
     items.push(trimmed)
   }
   return items
+}
+
+function parseLoggingLevel(raw: unknown, path: string): LoggingLevel {
+  if (typeof raw !== 'string') {
+    throw new Error(`Invalid config file ${path}: "logging.level" must be a string.`)
+  }
+  const trimmed = raw.trim().toLowerCase()
+  if (trimmed === 'debug' || trimmed === 'info' || trimmed === 'warn' || trimmed === 'error') {
+    return trimmed as LoggingLevel
+  }
+  throw new Error(
+    `Invalid config file ${path}: "logging.level" must be one of "debug", "info", "warn", "error".`
+  )
+}
+
+function parseLoggingFormat(raw: unknown, path: string): LoggingFormat {
+  if (typeof raw !== 'string') {
+    throw new Error(`Invalid config file ${path}: "logging.format" must be a string.`)
+  }
+  const trimmed = raw.trim().toLowerCase()
+  if (trimmed === 'json' || trimmed === 'pretty') {
+    return trimmed as LoggingFormat
+  }
+  throw new Error(
+    `Invalid config file ${path}: "logging.format" must be one of "json" or "pretty".`
+  )
 }
 
 function parseCliProviderList(
@@ -707,6 +745,59 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
     return typeof language === 'string' ? { language } : undefined
   })()
 
+  const logging = (() => {
+    const value = (parsed as Record<string, unknown>).logging
+    if (typeof value === 'undefined') return undefined
+    if (!isRecord(value)) {
+      throw new Error(`Invalid config file ${path}: "logging" must be an object.`)
+    }
+    const enabled = typeof value.enabled === 'boolean' ? value.enabled : undefined
+    const level = typeof value.level === 'undefined' ? undefined : parseLoggingLevel(value.level, path)
+    const format =
+      typeof value.format === 'undefined' ? undefined : parseLoggingFormat(value.format, path)
+    const file =
+      typeof value.file === 'string' && value.file.trim().length > 0
+        ? value.file.trim()
+        : typeof value.file === 'undefined'
+          ? undefined
+          : (() => {
+              throw new Error(`Invalid config file ${path}: "logging.file" must be a string.`)
+            })()
+    const maxMbRaw = value.maxMb
+    const maxMb =
+      typeof maxMbRaw === 'number' && Number.isFinite(maxMbRaw) && maxMbRaw > 0
+        ? maxMbRaw
+        : typeof maxMbRaw === 'undefined'
+          ? undefined
+          : (() => {
+              throw new Error(`Invalid config file ${path}: "logging.maxMb" must be a number.`)
+            })()
+    const maxFilesRaw = value.maxFiles
+    const maxFiles =
+      typeof maxFilesRaw === 'number' && Number.isFinite(maxFilesRaw) && maxFilesRaw > 0
+        ? Math.trunc(maxFilesRaw)
+        : typeof maxFilesRaw === 'undefined'
+          ? undefined
+          : (() => {
+              throw new Error(`Invalid config file ${path}: "logging.maxFiles" must be a number.`)
+            })()
+    return enabled ||
+      level ||
+      format ||
+      file ||
+      typeof maxMb === 'number' ||
+      typeof maxFiles === 'number'
+      ? {
+          ...(typeof enabled === 'boolean' ? { enabled } : {}),
+          ...(level ? { level } : {}),
+          ...(format ? { format } : {}),
+          ...(file ? { file } : {}),
+          ...(typeof maxMb === 'number' ? { maxMb } : {}),
+          ...(typeof maxFiles === 'number' ? { maxFiles } : {}),
+        }
+      : undefined
+  })()
+
   const openai = (() => {
     const value = parsed.openai
     if (typeof value === 'undefined') return undefined
@@ -753,6 +844,7 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
       ...(anthropic ? { anthropic } : {}),
       ...(google ? { google } : {}),
       ...(xai ? { xai } : {}),
+      ...(logging ? { logging } : {}),
     },
     path,
   }

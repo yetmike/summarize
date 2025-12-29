@@ -99,6 +99,30 @@ Configure the on-disk SQLite cache (extracted content, transcripts, summaries).
 }
 ```
 
+## Logging (daemon)
+
+Enable JSON log files for the daemon:
+
+```json
+{
+  "logging": {
+    "enabled": true,
+    "level": "info",
+    "format": "json",
+    "file": "~/.summarize/logs/daemon.jsonl",
+    "maxMb": 10,
+    "maxFiles": 3
+  }
+}
+```
+
+Notes:
+
+- Default: logging is off.
+- `format`: `json` (default) or `pretty`.
+- `maxMb` is per file; `maxFiles` controls rotation (ring).
+- Extension “Extended logging” sends full input/output to daemon logs (large). Cache hits skip content logging.
+
 ## Presets
 
 Define presets you can select via `--model <preset>`:

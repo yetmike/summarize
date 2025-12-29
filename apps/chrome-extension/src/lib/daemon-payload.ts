@@ -30,6 +30,7 @@ export function buildDaemonRequestBody({
     overrides.retries = settings.retries
   }
   if (maxOutputTokens) overrides.maxOutputTokens = maxOutputTokens
+  const diagnostics = settings.extendedLogging ? { includeContent: true } : null
   return {
     url: extracted.url,
     title: extracted.title,
@@ -40,6 +41,7 @@ export function buildDaemonRequestBody({
     language: settings.language,
     ...(promptOverride ? { prompt: promptOverride } : {}),
     ...(noCache ? { noCache: true } : {}),
+    ...(diagnostics ? { diagnostics } : {}),
     ...overrides,
     maxCharacters: settings.maxChars,
   }

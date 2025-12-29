@@ -71,7 +71,8 @@
     "mime": "^4.1.0",
     "ora": "^9.0.0",
     "osc-progress": "github:steipete/osc-progress#v0.2.0",
-    "tokentally": "github:steipete/tokentally#v0.1.0"
+    "tokentally": "github:steipete/tokentally#v0.1.0",
+    "tslog": "^4.10.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.10",

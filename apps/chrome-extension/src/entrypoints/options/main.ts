@@ -28,6 +28,7 @@ const advancedFieldsEl = byId<HTMLDivElement>('advancedFields')
 const advancedToggleEl = byId<HTMLButtonElement>('advancedToggle')
 const hoverPromptEl = byId<HTMLTextAreaElement>('hoverPrompt')
 const hoverPromptResetBtn = byId<HTMLButtonElement>('hoverPromptReset')
+const extendedLoggingToggleRoot = byId<HTMLDivElement>('extendedLoggingToggle')
 const requestModeEl = byId<HTMLSelectElement>('requestMode')
 const firecrawlModeEl = byId<HTMLSelectElement>('firecrawlMode')
 const markdownModeEl = byId<HTMLSelectElement>('markdownMode')
@@ -43,6 +44,7 @@ const buildInfoEl = document.getElementById('buildInfo')
 const daemonStatusEl = byId<HTMLDivElement>('daemonStatus')
 
 let autoValue = defaultSettings.autoSummarize
+let extendedLoggingValue = defaultSettings.extendedLogging
 let advancedOpen = false
 
 const setStatus = (text: string) => {
@@ -316,6 +318,15 @@ const autoToggle = mountCheckbox(autoToggleRoot, {
   },
 })
 
+const extendedLoggingToggle = mountCheckbox(extendedLoggingToggleRoot, {
+  id: 'options-extended-logging',
+  label: 'Extended logging (send full input/output to daemon logs)',
+  checked: extendedLoggingValue,
+  onCheckedChange: (checked) => {
+    extendedLoggingValue = checked
+  },
+})
+
 const updateAdvancedVisibility = () => {
   advancedFieldsEl.hidden = !advancedOpen
   advancedToggleEl.setAttribute('aria-expanded', advancedOpen ? 'true' : 'false')
@@ -336,12 +347,21 @@ async function load() {
   promptOverrideEl.value = s.promptOverride
   hoverPromptEl.value = s.hoverPrompt || defaultSettings.hoverPrompt
   autoValue = s.autoSummarize
+  extendedLoggingValue = s.extendedLogging
   autoToggle.update({
     id: 'options-auto',
     label: 'Auto-summarize when panel is open',
     checked: autoValue,
     onCheckedChange: (checked) => {
       autoValue = checked
+    },
+  })
+  extendedLoggingToggle.update({
+    id: 'options-extended-logging',
+    label: 'Extended logging (send full input/output to daemon logs)',
+    checked: extendedLoggingValue,
+    onCheckedChange: (checked) => {
+      extendedLoggingValue = checked
     },
   })
   maxCharsEl.value = String(s.maxChars)
@@ -421,6 +441,7 @@ formEl.addEventListener('submit', (e) => {
       hoverPrompt: hoverPromptEl.value || defaultSettings.hoverPrompt,
       autoSummarize: autoValue,
       hoverSummaries: current.hoverSummaries,
+      extendedLogging: extendedLoggingValue,
       maxChars: Number(maxCharsEl.value) || defaultSettings.maxChars,
       requestMode: requestModeEl.value || defaultSettings.requestMode,
       firecrawlMode: firecrawlModeEl.value || defaultSettings.firecrawlMode,

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import http from 'node:http'
 import type { CacheState } from '../cache.js'
 import { loadSummarizeConfig } from '../config.js'
+import { createDaemonLogger } from '../logging/daemon.js'
 import { createCacheStateFromConfig, refreshCacheStoreIfMissing } from '../run/cache-state.js'
 import { formatModelLabelForDisplay } from '../run/finish-line.js'
 import { resolveRunOverrides } from '../run/run-settings.js'
@@ -102,6 +103,14 @@ async function readJsonBody(req: http.IncomingMessage, maxBytes: number): Promis
   return JSON.parse(text)
 }
 
+function parseDiagnostics(raw: unknown): { includeContent: boolean } {
+  if (!raw || typeof raw !== 'object') {
+    return { includeContent: false }
+  }
+  const obj = raw as Record<string, unknown>
+  return { includeContent: Boolean(obj.includeContent) }
+}
+
 function createSession(): Session {
   return {
     id: randomUUID(),
@@ -195,6 +204,7 @@ export async function runDaemonServer({
   onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null
 }): Promise<void> {
   const { config: summarizeConfig } = loadSummarizeConfig({ env })
+  const daemonLogger = createDaemonLogger({ env, config: summarizeConfig })
   const cacheState = await createCacheStateFromConfig({
     envForRun: env,
     config: summarizeConfig,
@@ -287,6 +297,8 @@ export async function runDaemonServer({
           retries: obj.retries,
           maxOutputTokens: obj.maxOutputTokens,
         })
+        const diagnostics = parseDiagnostics(obj.diagnostics)
+        const includeContentLog = daemonLogger.enabled && diagnostics.includeContent
         const hasText = Boolean(textContent.trim())
         if (!pageUrl || !/^https?:\/\//i.test(pageUrl)) {
           json(res, 400, { ok: false, error: 'missing url' }, cors)
@@ -299,6 +311,33 @@ export async function runDaemonServer({
 
         const session = createSession()
         sessions.set(session.id, session)
+        const requestLogger = daemonLogger.getSubLogger('daemon.summarize', {
+          requestId: session.id,
+        })
+        const logStartedAt = Date.now()
+        let logSummaryFromCache = false
+        let logInputSummary: string | null = null
+        let logSummaryText = ''
+        let logExtracted: Record<string, unknown> | null = null
+        const logInput = includeContentLog
+          ? {
+              url: pageUrl,
+              title,
+              text: hasText ? textContent : null,
+              truncated: hasText ? truncated : null,
+            }
+          : null
+        requestLogger?.info({
+          event: 'summarize.request',
+          url: pageUrl,
+          mode,
+          hasText,
+          noCache,
+          length: lengthRaw,
+          language: languageRaw,
+          model: modelOverride,
+          includeContent: includeContentLog,
+        })
 
         json(res, 200, { ok: true, id: session.id }, cors)
 
@@ -308,6 +347,9 @@ export async function runDaemonServer({
             const sink = {
               writeChunk: (chunk: string) => {
                 emittedOutput = true
+                if (includeContentLog) {
+                  logSummaryText += chunk
+                }
                 pushToSession(session, { event: 'chunk', data: { text: chunk } }, onSessionEvent)
               },
               onModelChosen: (modelId: string) => {
@@ -331,6 +373,12 @@ export async function runDaemonServer({
                 inputSummary?: string | null
                 summaryFromCache?: boolean | null
               }) => {
+                if (typeof data.inputSummary === 'string') {
+                  logInputSummary = data.inputSummary
+                }
+                if (typeof data.summaryFromCache === 'boolean') {
+                  logSummaryFromCache = data.summaryFromCache
+                }
                 emitMeta(
                   session,
                   {
@@ -363,6 +411,13 @@ export async function runDaemonServer({
                     sink,
                     cache: requestCache,
                     overrides,
+                    hooks: includeContentLog
+                      ? {
+                          onExtracted: (content) => {
+                            logExtracted = content as Record<string, unknown>
+                          },
+                        }
+                      : null,
                   })
                 : await streamSummaryForVisiblePage({
                     env,
@@ -415,11 +470,46 @@ export async function runDaemonServer({
 
             pushToSession(session, { event: 'metrics', data: result.metrics }, onSessionEvent)
             pushToSession(session, { event: 'done', data: {} }, onSessionEvent)
+            requestLogger?.info({
+              event: 'summarize.done',
+              url: pageUrl,
+              mode,
+              model: result.usedModel,
+              elapsedMs: Date.now() - logStartedAt,
+              summaryFromCache: logSummaryFromCache,
+              inputSummary: logInputSummary,
+              ...(includeContentLog && !logSummaryFromCache
+                ? {
+                    input: logInput,
+                    extracted: logExtracted,
+                    summary: logSummaryText,
+                  }
+                : {}),
+            })
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             pushToSession(session, { event: 'error', data: { message } }, onSessionEvent)
             // Preserve full stack trace in daemon logs for debugging.
             console.error('[summarize-daemon] summarize failed', error)
+            requestLogger?.error({
+              event: 'summarize.error',
+              url: pageUrl,
+              mode,
+              elapsedMs: Date.now() - logStartedAt,
+              summaryFromCache: logSummaryFromCache,
+              inputSummary: logInputSummary,
+              error: {
+                message,
+                stack: error instanceof Error ? error.stack : null,
+              },
+              ...(includeContentLog && !logSummaryFromCache
+                ? {
+                    input: logInput,
+                    extracted: logExtracted,
+                    summary: logSummaryText || null,
+                  }
+                : {}),
+            })
           } finally {
             setTimeout(() => {
               sessions.delete(session.id)

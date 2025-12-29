@@ -290,6 +290,7 @@ export async function streamSummaryForUrl({
   sink,
   cache,
   overrides,
+  hooks,
 }: {
   env: Record<string, string | undefined>
   fetchImpl: typeof fetch
@@ -301,6 +302,9 @@ export async function streamSummaryForUrl({
   sink: StreamSink
   cache: CacheState
   overrides: RunOverrides
+  hooks?: {
+    onExtracted?: ((extracted: ExtractedLinkContent) => void) | null
+  } | null
 }): Promise<{ usedModel: string; metrics: VisiblePageMetrics }> {
   const startedAt = Date.now()
   let usedModel: string | null = null
@@ -327,6 +331,7 @@ export async function streamSummaryForUrl({
       },
       onExtracted: (content) => {
         extractedRef.value = content
+        hooks?.onExtracted?.(content)
         sink.writeMeta?.({ inputSummary: buildInputSummaryForExtracted(content) })
         writeStatus?.('Summarizing…')
       },

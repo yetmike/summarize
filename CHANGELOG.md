@@ -7,6 +7,7 @@
 - Streaming: flush deltas without newline gating for faster panel updates.
 - Chrome Side Panel: dynamically shorten `openrouter/` to `or/` in the metrics footer when it wraps.
 - Chrome extension: add optional hover tooltip summaries for links (advanced setting, default off).
+- Daemon logging: optional JSON log file with rotation; extension toggle can send full input/output for debugging.
 - PDF inputs: send PDFs directly to Anthropic/OpenAI/Gemini when supported (skip markitdown preprocessing).
 
 ### Fixes
