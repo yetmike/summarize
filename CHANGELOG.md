@@ -9,7 +9,7 @@
 
 ### Fixes
 
-- Auto model selection: OpenRouter fallback now resolves provider-specific ids (skips fallback when no unique match).
+- Auto model selection: OpenRouter fallback now resolves provider-specific ids (including dash/dot slug normalization) and skips fallback when no unique match.
 
 ## 0.8.0 - 2025-12-28
 

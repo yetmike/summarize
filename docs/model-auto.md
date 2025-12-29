@@ -36,6 +36,7 @@ Behavior:
 - Uses the order you provide in `model.rules[].candidates[]` (or `bands[].candidates[]`).
 - Filters out candidates that can’t fit the prompt (max input tokens, LiteLLM catalog).
 - For a native candidate, auto mode may add an OpenRouter fallback attempt right after it (when `OPENROUTER_API_KEY` is set, video understanding isn’t required, and a matching OpenRouter model id is found). If no unique OpenRouter id matches, the fallback is skipped.
+- To force native-only attempts, unset `OPENROUTER_API_KEY` (or pass an explicit native model id like `xai/...` and keep the key unset).
 
 Notes:
 

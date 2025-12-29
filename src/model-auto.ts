@@ -42,6 +42,7 @@ export type AutoModelAttempt = {
 type OpenRouterModelIndex = {
   byId: Map<string, string>
   bySlug: Map<string, Set<string>>
+  bySlugNormalized: Map<string, Set<string>>
 }
 
 let cachedOpenRouterIndex: OpenRouterModelIndex | null = null
@@ -50,6 +51,7 @@ let cachedOpenRouterIndexReady = false
 function buildOpenRouterModelIndex(modelIds: string[]): OpenRouterModelIndex {
   const byId = new Map<string, string>()
   const bySlug = new Map<string, Set<string>>()
+  const bySlugNormalized = new Map<string, Set<string>>()
   for (const raw of modelIds) {
     const trimmed = raw.trim()
     if (trimmed.length === 0) continue
@@ -66,8 +68,17 @@ function buildOpenRouterModelIndex(modelIds: string[]): OpenRouterModelIndex {
       bySlug.set(slug, matches)
     }
     matches.add(normalized)
+    const normalizedSlug = normalizeSlugForMatch(slug)
+    if (normalizedSlug.length > 0) {
+      let normalizedMatches = bySlugNormalized.get(normalizedSlug)
+      if (!normalizedMatches) {
+        normalizedMatches = new Set()
+        bySlugNormalized.set(normalizedSlug, normalizedMatches)
+      }
+      normalizedMatches.add(normalized)
+    }
   }
-  return { byId, bySlug }
+  return { byId, bySlug, bySlugNormalized }
 }
 
 function getOpenRouterModelIndex(
@@ -101,9 +112,22 @@ function resolveOpenRouterModelIdForNative({
   // Fall back to a unique slug match (author differs, e.g. xai → x-ai).
   const slug = canonicalLower.slice(slash + 1)
   const matches = index.bySlug.get(slug)
-  if (!matches || matches.size !== 1) return null
-  const only = matches.values().next().value as string | undefined
-  return only ? index.byId.get(only) ?? null : null
+  if (matches && matches.size === 1) {
+    const only = matches.values().next().value as string | undefined
+    const exactMatch = only ? index.byId.get(only) ?? null : null
+    if (exactMatch) return exactMatch
+  }
+  // Retry with punctuation-insensitive slug (e.g. grok-4-1-fast → grok-4.1-fast).
+  const normalizedSlug = normalizeSlugForMatch(slug)
+  if (!normalizedSlug) return null
+  const normalizedMatches = index.bySlugNormalized.get(normalizedSlug)
+  if (!normalizedMatches || normalizedMatches.size !== 1) return null
+  const normalizedOnly = normalizedMatches.values().next().value as string | undefined
+  return normalizedOnly ? index.byId.get(normalizedOnly) ?? null : null
+}
+
+function normalizeSlugForMatch(slug: string): string {
+  return slug.toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
 const DEFAULT_RULES: AutoRule[] = [

@@ -85,7 +85,7 @@ function shouldSoftSkipLiveError(message: string): boolean {
       }
       try {
         const result = await generateTextWithModelId({
-          modelId: 'xai/grok-4-1-fast-reasoning',
+          modelId: 'xai/grok-4-1-fast',
           apiKeys,
           prompt: 'Say exactly: ok',
           maxOutputTokens: 32,

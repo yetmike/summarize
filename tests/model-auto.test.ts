@@ -73,6 +73,53 @@ describe('auto model selection', () => {
     expect(attempts.map((a) => a.userModelId)).toEqual(['xai/grok-4-fast'])
   })
 
+  it('matches OpenRouter ids when punctuation differs in slug', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['xai/grok-4-1-fast'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['x-ai/grok-4.1-fast'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual([
+      'xai/grok-4-1-fast',
+      'openrouter/x-ai/grok-4.1-fast',
+    ])
+  })
+
+  it('skips OpenRouter fallback when normalized slug is ambiguous', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['xai/grok-4-1-fast'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['x-ai/grok-4.1-fast', 'other/grok-4.1-fast'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual(['xai/grok-4-1-fast'])
+  })
+
   it('prefers exact OpenRouter id even if slug is ambiguous', () => {
     const config: SummarizeConfig = {
       model: {
