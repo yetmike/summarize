@@ -141,6 +141,18 @@ async function waitForActiveTabUrl(harness: ExtensionHarness, expectedPrefix: st
   await expect.poll(async () => (await getActiveTabUrl(harness)) ?? '').toContain(expectedPrefix)
 }
 
+async function activateTabByUrl(harness: ExtensionHarness, expectedPrefix: string) {
+  const background =
+    harness.context.serviceWorkers()[0] ??
+    (await harness.context.waitForEvent('serviceworker', { timeout: 15_000 }))
+  await background.evaluate(async (prefix) => {
+    const tabs = await chrome.tabs.query({ currentWindow: true })
+    const target = tabs.find((tab) => tab.url?.startsWith(prefix))
+    if (!target?.id) return
+    await chrome.tabs.update(target.id, { active: true })
+  }, expectedPrefix)
+}
+
 async function openExtensionPage(
   harness: ExtensionHarness,
   pathname: string,
@@ -405,10 +417,12 @@ test('auto summarize reruns after panel reopen', async () => {
     await contentPage.goto('https://example.com', { waitUntil: 'domcontentloaded' })
     const activeUrl = contentPage.url()
     await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
 
     const panel = await openExtensionPage(harness, 'sidepanel.html', '#title')
     await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await sendPanelMessage(panel, { type: 'panel:ready' })
     await expect.poll(() => summarizeCalls).toBeGreaterThanOrEqual(1)
@@ -417,6 +431,7 @@ test('auto summarize reruns after panel reopen', async () => {
     const callsBeforeClose = summarizeCalls
     await sendPanelMessage(panel, { type: 'panel:closed' })
     await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await sendPanelMessage(panel, { type: 'panel:ready' })
     await expect.poll(() => summarizeCalls).toBeGreaterThan(callsBeforeClose)
