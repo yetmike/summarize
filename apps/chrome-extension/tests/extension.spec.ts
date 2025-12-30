@@ -491,6 +491,190 @@ test('sidepanel shows an error when chat stream ends without done', async () => 
   }
 })
 
+test('sidepanel chat queue sends next message after stream completes', async () => {
+  const harness = await launchExtension()
+
+  try {
+    await seedSettings(harness, { token: 'test-token', autoSummarize: false, chatEnabled: true })
+    const contentPage = await harness.context.newPage()
+    await contentPage.goto('https://example.com', { waitUntil: 'domcontentloaded' })
+    await contentPage.evaluate(() => {
+      document.body.innerHTML =
+        '<article><p>' + 'Hello '.repeat(40) + '</p><p>More text for chat.</p></article>'
+    })
+    await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
+    await waitForActiveTabUrl(harness, 'https://example.com')
+    await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
+
+    let chatRequestCount = 0
+    let releaseFirstSse: (() => void) | null = null
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirstSse = resolve
+    })
+
+    await harness.context.route('http://127.0.0.1:8787/v1/chat', async (route) => {
+      chatRequestCount += 1
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true, id: `chat-${chatRequestCount}` }),
+      })
+    })
+
+    await harness.context.route(
+      /http:\/\/127\.0\.0\.1:8787\/v1\/summarize\/[^/]+\/events/,
+      async (route) => {
+        const match = route.request().url().match(/\/v1\/summarize\/([^/]+)\/events/)
+        const id = match?.[1] ?? 'chat-unknown'
+        if (id === 'chat-1') await firstGate
+        const body = [
+          'event: chunk',
+          `data: {"text":"Reply for ${id}"}`,
+          '',
+          'event: done',
+          'data: {}',
+          '',
+        ].join('\n')
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+          body,
+        })
+      }
+    )
+
+    const sendChat = async (text: string) => {
+      await page.evaluate((value) => {
+        const input = document.getElementById('chatInput') as HTMLTextAreaElement | null
+        const send = document.getElementById('chatSend') as HTMLButtonElement | null
+        if (!input || !send) return
+        input.value = value
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        send.click()
+      }, text)
+    }
+
+    await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
+    await waitForActiveTabUrl(harness, 'https://example.com')
+    await sendChat('First question')
+    await sendChat('Second question')
+
+    const queueItems = page.locator('#chatQueue .chatQueueItem')
+    await expect(queueItems).toHaveCount(1)
+    await expect(queueItems.first().locator('.chatQueueText')).toHaveText('Second question')
+
+    releaseFirstSse?.()
+
+    await expect.poll(() => chatRequestCount).toBe(2)
+    await expect(page.locator('#chatQueue')).toBeHidden()
+    await expect(page.locator('#chatMessages')).toContainText('Second question')
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
+test('sidepanel chat queue removes items before sending', async () => {
+  const harness = await launchExtension()
+
+  try {
+    await seedSettings(harness, { token: 'test-token', autoSummarize: false, chatEnabled: true })
+    const contentPage = await harness.context.newPage()
+    await contentPage.goto('https://example.com', { waitUntil: 'domcontentloaded' })
+    await contentPage.evaluate(() => {
+      document.body.innerHTML =
+        '<article><p>' + 'Hello '.repeat(40) + '</p><p>More text for chat.</p></article>'
+    })
+    await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
+    await waitForActiveTabUrl(harness, 'https://example.com')
+    await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
+
+    let chatRequestCount = 0
+    let releaseFirstSse: (() => void) | null = null
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirstSse = resolve
+    })
+
+    await harness.context.route('http://127.0.0.1:8787/v1/chat', async (route) => {
+      chatRequestCount += 1
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true, id: `chat-${chatRequestCount}` }),
+      })
+    })
+
+    await harness.context.route(
+      /http:\/\/127\.0\.0\.1:8787\/v1\/summarize\/[^/]+\/events/,
+      async (route) => {
+        const match = route.request().url().match(/\/v1\/summarize\/([^/]+)\/events/)
+        const id = match?.[1] ?? 'chat-unknown'
+        if (id === 'chat-1') await firstGate
+        const body = [
+          'event: chunk',
+          `data: {"text":"Reply for ${id}"}`,
+          '',
+          'event: done',
+          'data: {}',
+          '',
+        ].join('\n')
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+          body,
+        })
+      }
+    )
+
+    const sendChat = async (text: string) => {
+      await page.evaluate((value) => {
+        const input = document.getElementById('chatInput') as HTMLTextAreaElement | null
+        const send = document.getElementById('chatSend') as HTMLButtonElement | null
+        if (!input || !send) return
+        input.value = value
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        send.click()
+      }, text)
+    }
+
+    await contentPage.bringToFront()
+    await activateTabByUrl(harness, 'https://example.com')
+    await waitForActiveTabUrl(harness, 'https://example.com')
+    await sendChat('First question')
+    await sendChat('Second question')
+    await sendChat('Third question')
+
+    const queueItems = page.locator('#chatQueue .chatQueueItem')
+    await expect(queueItems).toHaveCount(2)
+    await expect(queueItems.nth(0).locator('.chatQueueText')).toHaveText('Second question')
+    await expect(queueItems.nth(1).locator('.chatQueueText')).toHaveText('Third question')
+
+    await queueItems.nth(0).locator('.chatQueueRemove').click()
+    await expect(queueItems).toHaveCount(1)
+    await expect(queueItems.first().locator('.chatQueueText')).toHaveText('Third question')
+
+    releaseFirstSse?.()
+
+    await expect.poll(() => chatRequestCount).toBe(2)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(chatRequestCount).toBe(2)
+    await expect(page.locator('#chatMessages')).toContainText('Third question')
+    await expect(page.locator('#chatQueue')).toBeHidden()
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
 test('auto summarize reruns after panel reopen', async () => {
   const harness = await launchExtension()
 
