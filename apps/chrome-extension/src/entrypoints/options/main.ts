@@ -371,7 +371,7 @@ const chatToggle = mountCheckbox(chatToggleRoot, {
 const updateHoverSummariesToggle = () => {
   hoverSummariesToggle.update({
     id: 'options-hover-summaries',
-    label: 'Show hover summary tooltips in pages',
+    label: 'Hover summaries (experimental)',
     checked: hoverSummariesValue,
     onCheckedChange: handleHoverSummariesToggleChange,
   })
@@ -382,7 +382,7 @@ const handleHoverSummariesToggleChange = (checked: boolean) => {
 }
 const hoverSummariesToggle = mountCheckbox(hoverSummariesToggleRoot, {
   id: 'options-hover-summaries',
-  label: 'Show hover summary tooltips in pages',
+  label: 'Hover summaries (experimental)',
   checked: hoverSummariesValue,
   onCheckedChange: handleHoverSummariesToggleChange,
 })

@@ -12,6 +12,7 @@
 - Chrome extension: split advanced overrides into a two-column grid for quicker scanning.
 - Chrome Side Panel: add Chat mode with metrics bar (advanced toggle, default on). Thanks @dougvk.
 - Chrome Side Panel chat: send full transcript + summary context (skip summary for oversized transcripts), include extraction metadata (duration + transcription method), add jump-to-latest, and improve auto-scroll + loading affordances.
+- Chrome extension: move hover summary toggle to advanced settings only and mark it experimental (default off).
 - Daemon CLI: retry health/auth checks on restart/install to avoid false negatives during startup.
 - Daemon logging: optional JSON log file with rotation; extension toggle can send full input/output for debugging.
 - PDF inputs: send PDFs directly to Anthropic/OpenAI/Gemini when supported (skip markitdown preprocessing).
