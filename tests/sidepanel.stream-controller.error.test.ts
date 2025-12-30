@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-
-import { type SseEvent, encodeSseEvent } from '../src/shared/sse-events.js'
+import { describe, expect, it } from 'vitest'
 import { createStreamController } from '../apps/chrome-extension/src/entrypoints/sidepanel/stream-controller.js'
+import { encodeSseEvent, type SseEvent } from '../src/shared/sse-events.js'
 
 const encoder = new TextEncoder()
 
@@ -34,10 +33,9 @@ describe('sidepanel stream controller error handling', () => {
       onPhaseChange: (phase) => phases.push(phase),
       onMeta: () => {},
       fetchImpl: async () =>
-        new Response(
-          streamFromEvents([{ event: 'error', data: { message: 'daemon crashed' } }]),
-          { status: 200 }
-        ),
+        new Response(streamFromEvents([{ event: 'error', data: { message: 'daemon crashed' } }]), {
+          status: 200,
+        }),
     })
 
     await controller.start(run)
