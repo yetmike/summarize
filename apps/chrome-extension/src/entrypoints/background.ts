@@ -172,6 +172,29 @@ function friendlyFetchError(err: unknown, context: string): string {
   return `${context}: ${message}`
 }
 
+function normalizeUrl(value: string) {
+  try {
+    const url = new URL(value)
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
+function urlsMatch(a: string, b: string) {
+  const left = normalizeUrl(a)
+  const right = normalizeUrl(b)
+  if (left === right) return true
+  const boundaryMatch = (longer: string, shorter: string) => {
+    if (!longer.startsWith(shorter)) return false
+    if (longer.length === shorter.length) return true
+    const next = longer[shorter.length]
+    return next === '/' || next === '?' || next === '&'
+  }
+  return boundaryMatch(left, right) || boundaryMatch(right, left)
+}
+
 async function extractFromTab(
   tabId: number,
   maxChars: number
@@ -469,7 +492,7 @@ export default defineBackground(() => {
 
     sendStatus(`Extracting… (${reason})`)
     const extractedAttempt = await extractFromTab(tab.id, settings.maxChars)
-    const extracted = extractedAttempt.ok
+    let extracted = extractedAttempt.ok
       ? extractedAttempt.data
       : {
           ok: true,
@@ -479,41 +502,65 @@ export default defineBackground(() => {
           truncated: false,
         }
 
+    if (tab.url && extracted.url && !urlsMatch(tab.url, extracted.url)) {
+      await new Promise((resolve) => setTimeout(resolve, 180))
+      const retry = await extractFromTab(tab.id, settings.maxChars)
+      if (retry.ok) {
+        extracted = retry.data
+      }
+    }
+
+    const extractedMatchesTab =
+      tab.url && extracted.url ? urlsMatch(tab.url, extracted.url) : true
+    const resolvedExtracted =
+      tab.url && !extractedMatchesTab
+        ? {
+            ok: true,
+            url: tab.url,
+            title: tab.title ?? null,
+            text: '',
+            truncated: false,
+          }
+        : extracted
+
     if (!extracted) return
 
     if (
       settings.autoSummarize &&
-      (lastSummarizedUrl === extracted.url || inflightUrl === extracted.url) &&
+      ((lastSummarizedUrl && urlsMatch(lastSummarizedUrl, resolvedExtracted.url)) ||
+        (inflightUrl && urlsMatch(inflightUrl, resolvedExtracted.url))) &&
       !isManual
     ) {
       sendStatus('')
       return
     }
 
-    const resolvedTitle = tab.title?.trim() || extracted.title || null
-    const resolvedExtracted = { ...extracted, title: resolvedTitle }
+    const resolvedTitle = tab.title?.trim() || resolvedExtracted.title || null
+    const resolvedPayload = { ...resolvedExtracted, title: resolvedTitle }
     const wordCount =
-      extracted.text.length > 0 ? extracted.text.split(/\s+/).filter(Boolean).length : 0
+      resolvedPayload.text.length > 0
+        ? resolvedPayload.text.split(/\s+/).filter(Boolean).length
+        : 0
 
     cachedExtracts.set(tab.id, {
-      url: extracted.url,
+      url: resolvedPayload.url,
       title: resolvedTitle,
-      text: extracted.text,
+      text: resolvedPayload.text,
       source: 'page',
-      truncated: extracted.truncated,
-      totalCharacters: extracted.text.length,
+      truncated: resolvedPayload.truncated,
+      totalCharacters: resolvedPayload.text.length,
       wordCount,
       transcriptSource: null,
       transcriptionProvider: null,
       transcriptCharacters: null,
       transcriptWordCount: null,
       transcriptLines: null,
-      mediaDurationSeconds: extracted.mediaDurationSeconds ?? null,
+      mediaDurationSeconds: resolvedPayload.mediaDurationSeconds ?? null,
       diagnostics: null,
     })
 
     sendStatus('Requesting daemon…')
-    inflightUrl = extracted.url
+    inflightUrl = resolvedPayload.url
     let id: string
     try {
       const res = await fetch('http://127.0.0.1:8787/v1/summarize', {
@@ -524,7 +571,7 @@ export default defineBackground(() => {
         },
         body: JSON.stringify(
           buildDaemonRequestBody({
-            extracted: resolvedExtracted,
+            extracted: resolvedPayload,
             settings,
             noCache: Boolean(opts?.refresh),
           })
@@ -547,7 +594,7 @@ export default defineBackground(() => {
 
     void send({
       type: 'run:start',
-      run: { id, url: extracted.url, title: resolvedTitle, model: settings.model, reason },
+      run: { id, url: resolvedPayload.url, title: resolvedTitle, model: settings.model, reason },
     })
   }
 
