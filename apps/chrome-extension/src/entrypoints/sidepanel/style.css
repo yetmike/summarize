@@ -1792,6 +1792,25 @@ button.setup__pill.isActive {
   border-radius: 8px;
 }
 
+.chatMessage pre {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chatMessage pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  white-space: inherit;
+  word-break: inherit;
+}
+
 .chatMessage ul {
   margin: 6px 0 6px 18px;
   padding: 0;
