@@ -104,6 +104,7 @@ export async function executeToolCall(toolCall: ToolCall): Promise<ToolResultMes
         toolName: toolCall.name,
         text: result.output,
         isError: false,
+        details: result.files?.length ? { files: result.files } : undefined,
       })
     }
 

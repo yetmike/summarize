@@ -131,14 +131,18 @@ Params:
 
 Result:
 ```
-{ "output": "console/return output" }
+{ "output": "console/return output", "files": [{ "fileName": "...", "mimeType": "...", "contentBase64": "..." }] }
 ```
 
 REPL environment:
-- `browserjs(fn)` runs the function **in the page context** (via `chrome.scripting.executeScript`).
+- Runs in a **sandboxed iframe** (no DOM access to the panel).
+- `browserjs(fn, ...args)` runs the function **in the page context**.
+  - Uses `chrome.userScripts.execute` (main world) when available.
+  - Falls back to `chrome.scripting.executeScript` (isolated world).
 - `navigate({ url })` available inside the REPL (always use for navigation).
 - `sleep(ms)` helper.
 - Console output is captured and returned; return values are appended as `=> value`.
+- `returnFile(name, content, mimeType)` or `returnFile({ fileName, content, mimeType })` attaches files to the tool result.
 
 Safety:
 - Navigation inside REPL code (`window.location`, `history`, etc.) is rejected. Use `navigate()` instead.

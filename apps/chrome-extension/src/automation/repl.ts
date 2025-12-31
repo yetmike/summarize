@@ -6,6 +6,12 @@ export type ReplArgs = {
   code: string
 }
 
+export type SandboxFile = {
+  fileName: string
+  mimeType: string
+  contentBase64: string
+}
+
 type BrowserJsResult = {
   ok: boolean
   value?: unknown
@@ -15,6 +21,7 @@ type BrowserJsResult = {
 
 type ReplResult = {
   output: string
+  files?: SandboxFile[]
 }
 
 const NAVIGATION_PATTERNS = [
@@ -81,41 +88,11 @@ async function sendReplOverlay(
   }
 }
 
-function createConsoleCapture() {
-  const lines: string[] = []
-  const original = { ...console }
-  const format = (args: unknown[]) =>
-    args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')
-
-  const wrap =
-    (method: keyof Console) =>
-    (...args: unknown[]) => {
-      lines.push(format(args))
-      original[method](...args)
-    }
-
-  return {
-    lines,
-    restore() {
-      console.log = original.log
-      console.info = original.info
-      console.warn = original.warn
-      console.error = original.error
-    },
-    attach() {
-      console.log = wrap('log')
-      console.info = wrap('info')
-      console.warn = wrap('warn')
-      console.error = wrap('error')
-    },
-  }
-}
-
 async function hasDebuggerPermission(): Promise<boolean> {
   return chrome.permissions.contains({ permissions: ['debugger'] })
 }
 
-async function runBrowserJs(fnSource: string): Promise<BrowserJsResult> {
+async function runBrowserJs(fnSource: string, args: unknown[] = []): Promise<BrowserJsResult> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) throw new Error('No active tab')
 
@@ -132,11 +109,151 @@ async function runBrowserJs(fnSource: string): Promise<BrowserJsResult> {
   const libraries = skills.map((skill) => skill.library).filter(Boolean)
   const nativeInputEnabled = await hasDebuggerPermission()
 
-  const payload = { fnSource, libraries, nativeInputEnabled }
+  const payload = { fnSource, libraries, nativeInputEnabled, args }
+
+  const userScripts = chrome.userScripts as
+    | {
+        execute?: (options: {
+          target: { tabId: number; allFrames?: boolean }
+          world: 'USER_SCRIPT'
+          worldId?: string
+          injectImmediately?: boolean
+          js: Array<{ code: string }>
+        }) => Promise<Array<{ result?: unknown }>>
+        configureWorld?: (options: {
+          worldId: string
+          messaging?: boolean
+          csp?: string
+        }) => Promise<void>
+      }
+    | undefined
+
+  if (userScripts?.execute) {
+    const hasPermission = await chrome.permissions.contains({ permissions: ['userScripts'] })
+    if (!hasPermission) {
+      throw new Error(
+        'User Scripts permission is required. Enable it in Options → Automation permissions, then allow “User Scripts” in chrome://extensions.'
+      )
+    }
+
+    const argsJson = (() => {
+      try {
+        return JSON.stringify(args ?? [])
+      } catch {
+        return '[]'
+      }
+    })()
+
+    const libs = libraries.filter(Boolean).join('\n')
+    const wrapperCode = `
+      (async () => {
+        const logs = []
+        const capture = (...args) => {
+          logs.push(args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' '))
+        }
+        const originalLog = console.log
+        console.log = (...args) => {
+          capture(...args)
+          originalLog(...args)
+        }
+
+        const postNativeInput = (payload) => {
+          if (!${nativeInputEnabled ? 'true' : 'false'}) {
+            throw new Error('Native input requires debugger permission')
+          }
+          return new Promise((resolve, reject) => {
+            const requestId = \`\${Date.now()}-\${Math.random().toString(36).slice(2)}\`
+            const handler = (event) => {
+              if (event.source !== window) return
+              const msg = event.data || {}
+              if (msg?.source !== 'summarize-native-input' || msg.requestId !== requestId) return
+              window.removeEventListener('message', handler)
+              if (msg.ok) resolve(true)
+              else reject(new Error(msg.error || 'Native input failed'))
+            }
+            window.addEventListener('message', handler)
+            window.postMessage({ source: 'summarize-native-input', requestId, payload }, '*')
+          })
+        }
+
+        const attachNativeHelpers = () => {
+          const resolveElement = (selector) => {
+            const el = document.querySelector(selector)
+            if (!el) throw new Error(\`Element not found: \${selector}\`)
+            return el
+          }
+
+          window.nativeClick = async (selector) => {
+            const el = resolveElement(selector)
+            const rect = el.getBoundingClientRect()
+            await postNativeInput({ action: 'click', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+          }
+
+          window.nativeType = async (selector, text) => {
+            const el = resolveElement(selector)
+            el.focus()
+            await postNativeInput({ action: 'type', text })
+          }
+
+          window.nativePress = async (key) => {
+            await postNativeInput({ action: 'press', key })
+          }
+
+          window.nativeKeyDown = async (key) => {
+            await postNativeInput({ action: 'keydown', key })
+          }
+
+          window.nativeKeyUp = async (key) => {
+            await postNativeInput({ action: 'keyup', key })
+          }
+        }
+
+        try {
+          ${libs}
+          attachNativeHelpers()
+          const fn = (${fnSource})
+          const args = ${argsJson}
+          const value = await fn(...args)
+          return { ok: true, value, logs }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return { ok: false, error: message, logs }
+        } finally {
+          console.log = originalLog
+        }
+      })()
+    `
+
+    try {
+      await userScripts.configureWorld?.({
+        worldId: 'summarize-browserjs',
+        messaging: false,
+        csp: "script-src 'unsafe-eval' 'unsafe-inline'; connect-src 'none'; img-src 'none'; media-src 'none'; frame-src 'none'; font-src 'none'; object-src 'none'; default-src 'none';",
+      })
+    } catch {
+      // ignore
+    }
+
+    const results = await userScripts.execute({
+      target: { tabId: tab.id },
+      world: 'USER_SCRIPT',
+      worldId: 'summarize-browserjs',
+      injectImmediately: true,
+      js: [{ code: wrapperCode }],
+    })
+
+    const result = results?.[0]?.result as BrowserJsResult | undefined
+    return result ?? { ok: false, error: 'No result from browserjs()' }
+  }
 
   const injection: chrome.scripting.ScriptInjection = {
     target: { tabId: tab.id },
-    func: (data: { fnSource: string; libraries: string[]; nativeInputEnabled: boolean }) => {
+    func: (data: {
+      fnSource: string
+      libraries: string[]
+      nativeInputEnabled: boolean
+      args: unknown[]
+    }) => {
       const logs: string[] = []
       const capture = (...args: unknown[]) => {
         logs.push(
@@ -227,7 +344,7 @@ async function runBrowserJs(fnSource: string): Promise<BrowserJsResult> {
         }
         attachNativeHelpers()
         const fn = new Function(`return (${data.fnSource})`)()
-        const value = await fn()
+        const value = await fn(...(data.args ?? []))
         return { ok: true as const, value, logs }
       }
 
@@ -248,6 +365,267 @@ async function runBrowserJs(fnSource: string): Promise<BrowserJsResult> {
   return (result?.result ?? { ok: false, error: 'No result from browserjs()' }) as BrowserJsResult
 }
 
+function buildSandboxHtml(): string {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+      </head>
+      <body>
+        <script>
+          const formatValue = (value) => {
+            if (value == null) return 'null'
+            if (typeof value === 'string') return value
+            try { return JSON.stringify(value) } catch { return String(value) }
+          }
+
+          const toBase64 = (input) => {
+            if (typeof input === 'string') {
+              return btoa(unescape(encodeURIComponent(input)))
+            }
+            if (input instanceof ArrayBuffer) {
+              const bytes = new Uint8Array(input)
+              let binary = ''
+              bytes.forEach((b) => { binary += String.fromCharCode(b) })
+              return btoa(binary)
+            }
+            if (ArrayBuffer.isView(input)) {
+              const bytes = new Uint8Array(input.buffer)
+              let binary = ''
+              bytes.forEach((b) => { binary += String.fromCharCode(b) })
+              return btoa(binary)
+            }
+            return btoa(unescape(encodeURIComponent(String(input))))
+          }
+
+          const sendRpc = (action, payload) => {
+            return new Promise((resolve, reject) => {
+              const requestId = \`\${Date.now()}-\${Math.random().toString(36).slice(2)}\`
+              const handler = (event) => {
+                const data = event.data || {}
+                if (data.source !== 'summarize-repl' || data.type !== 'rpc-result') return
+                if (data.requestId !== requestId) return
+                window.removeEventListener('message', handler)
+                if (data.ok) resolve(data.result)
+                else reject(new Error(data.error || 'RPC failed'))
+              }
+              window.addEventListener('message', handler)
+              window.parent.postMessage(
+                { source: 'summarize-repl', type: 'rpc', requestId, action, payload },
+                '*'
+              )
+            })
+          }
+
+          window.addEventListener('message', async (event) => {
+            const data = event.data || {}
+            if (data.source !== 'summarize-repl' || data.type !== 'execute') return
+
+            const { requestId, code } = data
+            const logs = []
+            const files = []
+
+            const original = { ...console }
+            const capture = (...args) => {
+              logs.push(args.map((arg) => formatValue(arg)).join(' '))
+            }
+            console.log = (...args) => { capture(...args); original.log(...args) }
+            console.info = (...args) => { capture(...args); original.info(...args) }
+            console.warn = (...args) => { capture(...args); original.warn(...args) }
+            console.error = (...args) => { capture(...args); original.error(...args) }
+
+            const browserjs = async (fn, ...args) => {
+              if (typeof fn !== 'function') throw new Error('browserjs() expects a function')
+              const result = await sendRpc('browserjs', { fnSource: fn.toString(), args })
+              if (result && typeof result === 'object' && '__browserLogs' in result) {
+                const payload = result
+                if (Array.isArray(payload.__browserLogs)) {
+                  logs.push(...payload.__browserLogs)
+                }
+                return payload.value
+              }
+              return result
+            }
+
+            const navigate = async (args) => sendRpc('navigate', args)
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+            const returnFile = (fileNameOrObj, maybeContent, maybeMimeType) => {
+              let fileName = ''
+              let content = ''
+              let mimeType = 'text/plain'
+              if (typeof fileNameOrObj === 'object' && fileNameOrObj) {
+                fileName = fileNameOrObj.fileName || fileNameOrObj.name || ''
+                content = fileNameOrObj.content ?? ''
+                mimeType = fileNameOrObj.mimeType || fileNameOrObj.type || mimeType
+              } else {
+                fileName = String(fileNameOrObj || '')
+                content = maybeContent ?? ''
+                mimeType = maybeMimeType || mimeType
+              }
+              if (!fileName) {
+                throw new Error('returnFile() requires a fileName')
+              }
+              const contentBase64 = toBase64(content)
+              files.push({ fileName, mimeType, contentBase64 })
+            }
+
+            try {
+              const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+              const fn = new AsyncFunction('browserjs', 'navigate', 'sleep', 'returnFile', 'console', code)
+              const result = await fn(browserjs, navigate, sleep, returnFile, console)
+              if (result !== undefined) {
+                logs.push(\`=> \${formatValue(result)}\`)
+              }
+              window.parent.postMessage(
+                { source: 'summarize-repl', type: 'result', requestId, ok: true, logs, files },
+                '*'
+              )
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              window.parent.postMessage(
+                { source: 'summarize-repl', type: 'result', requestId, ok: false, error: message, logs, files },
+                '*'
+              )
+            } finally {
+              console.log = original.log
+              console.info = original.info
+              console.warn = original.warn
+              console.error = original.error
+            }
+          })
+        </script>
+      </body>
+    </html>
+  `
+}
+
+async function runSandboxedRepl(
+  code: string,
+  handlers: {
+    onBrowserJs: (payload: { fnSource: string; args: unknown[] }) => Promise<unknown>
+    onNavigate: (payload: { url: string; newTab?: boolean }) => Promise<unknown>
+  }
+): Promise<{ logs: string[]; files: SandboxFile[]; error?: string }> {
+  const iframe = document.createElement('iframe')
+  iframe.setAttribute('sandbox', 'allow-scripts')
+  iframe.style.display = 'none'
+  iframe.srcdoc = buildSandboxHtml()
+  document.body.appendChild(iframe)
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      window.removeEventListener('message', onMessage)
+      iframe.remove()
+    }
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return
+      const data = event.data as {
+        source?: string
+        type?: string
+        requestId?: string
+        action?: string
+        payload?: unknown
+        ok?: boolean
+        result?: unknown
+        error?: string
+        logs?: string[]
+        files?: SandboxFile[]
+      }
+      if (data?.source !== 'summarize-repl') return
+      if (data.type === 'rpc' && data.requestId) {
+        const handle = async () => {
+          try {
+            if (data.action === 'browserjs') {
+              const result = await handlers.onBrowserJs(
+                data.payload as { fnSource: string; args: unknown[] }
+              )
+              iframe.contentWindow?.postMessage(
+                {
+                  source: 'summarize-repl',
+                  type: 'rpc-result',
+                  requestId: data.requestId,
+                  ok: true,
+                  result,
+                },
+                '*'
+              )
+            } else if (data.action === 'navigate') {
+              const result = await handlers.onNavigate(
+                data.payload as { url: string; newTab?: boolean }
+              )
+              iframe.contentWindow?.postMessage(
+                {
+                  source: 'summarize-repl',
+                  type: 'rpc-result',
+                  requestId: data.requestId,
+                  ok: true,
+                  result,
+                },
+                '*'
+              )
+            } else {
+              iframe.contentWindow?.postMessage(
+                {
+                  source: 'summarize-repl',
+                  type: 'rpc-result',
+                  requestId: data.requestId,
+                  ok: false,
+                  error: `Unknown action: ${data.action}`,
+                },
+                '*'
+              )
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            iframe.contentWindow?.postMessage(
+              {
+                source: 'summarize-repl',
+                type: 'rpc-result',
+                requestId: data.requestId,
+                ok: false,
+                error: message,
+              },
+              '*'
+            )
+          }
+        }
+        void handle()
+        return
+      }
+
+      if (data.type === 'result' && data.requestId === requestId) {
+        cleanup()
+        resolve({
+          logs: data.logs ?? [],
+          files: data.files ?? [],
+          error: data.ok ? undefined : data.error || 'Execution failed',
+        })
+      }
+    }
+
+    window.addEventListener('message', onMessage)
+
+    const sendExecute = () => {
+      iframe.contentWindow?.postMessage(
+        { source: 'summarize-repl', type: 'execute', requestId, code },
+        '*'
+      )
+    }
+
+    if (iframe.contentWindow?.document?.readyState === 'complete') {
+      sendExecute()
+    } else {
+      iframe.addEventListener('load', sendExecute, { once: true })
+    }
+  })
+}
+
 export async function executeReplTool(args: ReplArgs): Promise<ReplResult> {
   if (!args.code?.trim()) throw new Error('Missing code')
   validateReplCode(args.code)
@@ -262,41 +640,37 @@ export async function executeReplTool(args: ReplArgs): Promise<ReplResult> {
     }
   }
 
-  const capture = createConsoleCapture()
-  capture.attach()
-
-  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
-    ...args: string[]
-  ) => (...fnArgs: unknown[]) => Promise<unknown>
-
-  const browserjs = async (fn: unknown) => {
-    if (typeof fn !== 'function') throw new Error('browserjs() expects a function')
-    const res = await runBrowserJs(fn.toString())
-    if (res.logs?.length) {
-      capture.lines.push(...res.logs)
-    }
-    if (!res.ok) throw new Error(res.error || 'browserjs failed')
-    return res.value
-  }
-
-  const navigate = async (input: { url: string; newTab?: boolean }) => executeNavigateTool(input)
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
   try {
-    const fn = new AsyncFunction('browserjs', 'navigate', 'sleep', 'console', args.code)
-    const result = await fn(browserjs, navigate, sleep, console)
-    if (result !== undefined) {
-      capture.lines.push(`=> ${typeof result === 'string' ? result : JSON.stringify(result)}`)
+    const sandboxResult = await runSandboxedRepl(args.code, {
+      onBrowserJs: async ({ fnSource, args: fnArgs }) => {
+        const res = await runBrowserJs(fnSource, fnArgs)
+        if (!res.ok) throw new Error(res.error || 'browserjs failed')
+        if (res.logs?.length) {
+          return { value: res.value, __browserLogs: res.logs }
+        }
+        return res.value
+      },
+      onNavigate: async (input) => executeNavigateTool(input),
+    })
+
+    const logs = sandboxResult.logs ?? []
+    if (sandboxResult.files?.length) {
+      logs.push(`[Files returned: ${sandboxResult.files.length}]`)
+      for (const file of sandboxResult.files) {
+        logs.push(`- ${file.fileName} (${file.mimeType})`)
+      }
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    capture.lines.push(`Error: ${message}`)
+    if (sandboxResult.error) {
+      logs.push(`Error: ${sandboxResult.error}`)
+    }
+    const output = logs.join('\n').trim() || 'Code executed successfully (no output)'
+    return {
+      output,
+      files: sandboxResult.files?.length ? sandboxResult.files : undefined,
+    }
   } finally {
-    capture.restore()
     if (overlayTabId) {
       await sendReplOverlay(overlayTabId, 'hide')
     }
   }
-
-  return { output: capture.lines.join('\n').trim() || 'Code executed successfully (no output)' }
 }
