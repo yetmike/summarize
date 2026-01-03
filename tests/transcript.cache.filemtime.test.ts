@@ -186,8 +186,7 @@ describe('transcript cache with file modification time', () => {
    })
 
    it('write operation calls cache.set with all necessary parameters', async () => {
-     // Verify that cache.set receives all expected parameters including fileMtime context
-     // from the surrounding system (even if the write operation itself doesn't set it)
+     // Verify that cache.set receives all expected parameters including fileMtime
      const transcriptCache: TranscriptCache = {
        get: vi.fn(async () => null),
        set: vi.fn(async () => {}),
@@ -195,27 +194,30 @@ describe('transcript cache with file modification time', () => {
 
      const url = 'file:///Users/test/audio.mp3'
      const service = 'openai'
+     const fileMtime = 1704268800000
 
-     // Perform a write operation
+     // Perform a write operation with fileMtime
      await writeTranscriptCache({
        url,
        service,
        resourceKey: null,
        result: { text: 'test transcript', source: 'openai' },
        transcriptCache,
+       fileMtime,
      })
 
      // Verify set was called
      expect(vi.mocked(transcriptCache.set)).toHaveBeenCalled()
      const setCall = vi.mocked(transcriptCache.set).mock.calls[0]?.[0]
 
-     // Verify the structure of what was written
+     // Verify the structure of what was written, including fileMtime
      expect(setCall).toEqual(
        expect.objectContaining({
          url,
          service,
          content: 'test transcript',
          source: 'openai',
+         fileMtime,
        })
      )
    })

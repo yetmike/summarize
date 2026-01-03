@@ -158,6 +158,7 @@ export const resolveTranscriptForLink = async (
       resourceKey,
       result: providerResult,
       transcriptCache: deps.transcriptCache,
+      fileMtime,
     })
   }
 

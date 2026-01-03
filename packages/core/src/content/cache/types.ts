@@ -17,6 +17,7 @@ export interface TranscriptCacheSetArgs {
   source: TranscriptSource | null
   ttlMs: number
   metadata?: Record<string, unknown> | null
+  fileMtime?: number | null
 }
 
 /** Public interface for pluggable transcript caches (CLI, daemon, apps). */

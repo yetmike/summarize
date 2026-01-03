@@ -136,6 +136,7 @@ export const writeTranscriptCache = async ({
   resourceKey,
   result,
   transcriptCache,
+  fileMtime,
 }: {
   url: string
   service: string
@@ -146,6 +147,7 @@ export const writeTranscriptCache = async ({
     metadata?: Record<string, unknown> | undefined
   }
   transcriptCache: TranscriptCache | null
+  fileMtime?: number | null
 }): Promise<void> => {
   if (!transcriptCache) {
     return
@@ -166,6 +168,7 @@ export const writeTranscriptCache = async ({
     content: result.text,
     source: resolvedSource,
     metadata: result.metadata ?? null,
+    fileMtime,
   })
 }
 
