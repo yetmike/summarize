@@ -30,6 +30,8 @@ Lightweight, CLI-only SQLite cache. Single DB file.
 - **Summaries**
   - key: `sha256({contentHash, promptHash, model, length, language, formatVersion})`
   - cache hit even if URL differs (content hash wins).
+- **Slides** (manifest + on-disk images in the slides output dir)
+  - key: `sha256({url, slideSettings, formatVersion})`
 
 ## Keys / hashes
 

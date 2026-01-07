@@ -1,4 +1,6 @@
-import { buildExtractCacheKey } from '../../../cache.js'
+import { promises as fs } from 'node:fs'
+
+import { buildExtractCacheKey, buildSlidesCacheKey } from '../../../cache.js'
 import { loadRemoteAsset } from '../../../content/asset.js'
 import {
   createLinkPreviewClient,
@@ -6,13 +8,10 @@ import {
   type FetchLinkContentOptions,
 } from '../../../content/index.js'
 import { createFirecrawlScraper } from '../../../firecrawl.js'
-import { buildAutoModelAttempts } from '../../../model-auto.js'
 import {
   extractSlidesForSource,
   resolveSlideSource,
   type SlideExtractionResult,
-  type SlideLlmAttempt,
-  type SlideLlmConfig,
 } from '../../../slides/index.js'
 import { createOscProgressController } from '../../../tty/osc-progress.js'
 import { startSpinner } from '../../../tty/spinner.js'
@@ -29,7 +28,6 @@ import {
   formatUSD,
 } from '../../format.js'
 import { writeVerbose } from '../../logging.js'
-import type { ModelAttempt } from '../../types.js'
 import {
   deriveExtractionUi,
   fetchLinkContentWithBirdTip,
@@ -226,71 +224,26 @@ export async function runUrlFlow({
     let extractionUi = deriveExtractionUi(extracted)
     let slidesResult: SlideExtractionResult | null = null
 
-    const buildSlideLlmConfig = async () => {
-      const isSlideAttempt = (
-        attempt: ModelAttempt
-      ): attempt is ModelAttempt & { requiredEnv: SlideLlmAttempt['requiredEnv'] } =>
-        attempt.requiredEnv !== 'CLI_CLAUDE' &&
-        attempt.requiredEnv !== 'CLI_CODEX' &&
-        attempt.requiredEnv !== 'CLI_GEMINI'
-
-      const catalog = await model.getLiteLlmCatalog()
-      const attempts = buildAutoModelAttempts({
-        kind: 'image',
-        promptTokens: 0,
-        desiredOutputTokens: null,
-        requiresVideoUnderstanding: false,
-        env: model.envForAuto,
-        config: model.configForModelSelection,
-        catalog,
-        openrouterProvidersFromEnv: null,
-        cliAvailability: model.cliAvailability,
-      })
-      const mapped = attempts
-        .filter((attempt) => attempt.transport !== 'cli' && attempt.llmModelId)
-        .map((attempt) => model.summaryEngine.applyZaiOverrides(attempt as ModelAttempt))
-        .filter(
-          (attempt): attempt is ModelAttempt & { llmModelId: string } =>
-            attempt.transport !== 'cli' && Boolean(attempt.llmModelId)
-        )
-        .filter(isSlideAttempt)
-
-      if (mapped.length === 0) return null
-
-      const slideAttempts: SlideLlmConfig['attempts'] = mapped.map((attempt) => ({
-        transport: attempt.transport === 'openrouter' ? 'openrouter' : 'native',
-        userModelId: attempt.userModelId,
-        llmModelId: attempt.llmModelId ?? attempt.userModelId,
-        forceOpenRouter: attempt.forceOpenRouter,
-        requiredEnv: attempt.requiredEnv as SlideLlmAttempt['requiredEnv'],
-        openaiBaseUrlOverride: attempt.openaiBaseUrlOverride ?? null,
-        openaiApiKeyOverride: attempt.openaiApiKeyOverride ?? null,
-        forceChatCompletions: attempt.forceChatCompletions,
-      }))
-
-      return {
-        attempts: slideAttempts,
-        timeoutMs: flags.timeoutMs,
-        fetchImpl: io.fetch,
-        openaiUseChatCompletions: model.openaiUseChatCompletions,
-        apiKeys: {
-          xaiApiKey: model.apiStatus.xaiApiKey,
-          openaiApiKey: model.apiStatus.apiKey,
-          googleApiKey: model.apiStatus.googleApiKey,
-          anthropicApiKey: model.apiStatus.anthropicApiKey,
-          openrouterApiKey: model.apiStatus.openrouterApiKey,
-          zaiApiKey: model.apiStatus.zaiApiKey,
-          zaiBaseUrl: model.apiStatus.zaiBaseUrl,
-        },
-        providerBaseUrls: model.apiStatus.providerBaseUrls,
-        keyFlags: {
-          googleConfigured: model.apiStatus.googleConfigured,
-          anthropicConfigured: model.apiStatus.anthropicConfigured,
-          openrouterConfigured: model.apiStatus.openrouterConfigured,
-        },
-        verbose: flags.verbose,
-        verboseColor: flags.verboseColor,
+    const isCachedSlidesValid = async (
+      cached: SlideExtractionResult,
+      source: { sourceId: string; kind: string }
+    ): Promise<boolean> => {
+      if (!cached || cached.slides.length === 0) return false
+      if (cached.sourceId !== source.sourceId || cached.sourceKind !== source.kind) return false
+      try {
+        await fs.stat(cached.slidesDir)
+      } catch {
+        return false
       }
+      for (const slide of cached.slides) {
+        if (!slide.imagePath) return false
+        try {
+          await fs.stat(slide.imagePath)
+        } catch {
+          return false
+        }
+      }
+      return true
     }
 
     const runSlidesExtraction = async () => {
@@ -299,15 +252,27 @@ export async function runUrlFlow({
       if (!source) {
         throw new Error('Slides are only supported for YouTube or direct video URLs.')
       }
+      const slidesCacheKey =
+        cacheStore && cacheState.mode === 'default'
+          ? buildSlidesCacheKey({ url: source.url, settings: flags.slides })
+          : null
+      if (slidesCacheKey && cacheStore) {
+        const cached = cacheStore.getJson<SlideExtractionResult>('slides', slidesCacheKey)
+        if (cached && (await isCachedSlidesValid(cached, source))) {
+          writeVerbose(io.stderr, flags.verbose, 'cache hit slides', flags.verboseColor)
+          slidesResult = cached
+          ctx.hooks.onSlidesExtracted?.(slidesResult)
+          return
+        }
+        writeVerbose(io.stderr, flags.verbose, 'cache miss slides', flags.verboseColor)
+      }
       if (flags.progressEnabled) {
         spinner.setText('Extracting slides…')
         oscProgress.setIndeterminate('Extracting slides')
       }
-      const slideLlm = await buildSlideLlmConfig()
       slidesResult = await extractSlidesForSource({
         source,
         settings: flags.slides,
-        llm: slideLlm,
         env: io.env,
         timeoutMs: flags.timeoutMs,
         ytDlpPath: model.apiStatus.ytDlpPath,
@@ -316,6 +281,10 @@ export async function runUrlFlow({
       })
       if (slidesResult) {
         ctx.hooks.onSlidesExtracted?.(slidesResult)
+        if (slidesCacheKey && cacheStore) {
+          cacheStore.setJson('slides', slidesCacheKey, slidesResult, cacheState.ttlMs)
+          writeVerbose(io.stderr, flags.verbose, 'cache write slides', flags.verboseColor)
+        }
       }
       if (flags.progressEnabled) {
         updateSummaryProgress()

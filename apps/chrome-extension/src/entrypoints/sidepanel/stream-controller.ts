@@ -1,4 +1,8 @@
-import { parseSseEvent, type SseMetaData, type SseSlidesData } from '../../../../../src/shared/sse-events.js'
+import {
+  parseSseEvent,
+  type SseMetaData,
+  type SseSlidesData,
+} from '../../../../../src/shared/sse-events.js'
 import { mergeStreamingChunk } from '../../../../../src/shared/streaming-merge.js'
 import { parseSseStream, type SseMessage } from '../../lib/sse'
 import type { PanelPhase, RunStart } from './types'

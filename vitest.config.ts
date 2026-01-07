@@ -61,6 +61,8 @@ export default defineConfig({
         'tests/**',
         // Daemon is integration-tested / manually tested; unit coverage is noisy + brittle.
         '**/src/daemon/**',
+        // Slide extraction is integration-tested; unit coverage is too noisy.
+        'src/slides/extract.ts',
         // OS/browser integration (exec/sqlite/keychain); covered via higher-level tests.
         '**/src/content/transcript/providers/twitter-cookies-*.ts',
         // Barrels / type-only entrypoints (noise for coverage).

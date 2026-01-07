@@ -258,6 +258,59 @@ function hideSlideNotice() {
   slideNoticeEl.textContent = ''
 }
 
+const slideImageCache = new Map<string, string>()
+const slideImagePending = new Map<string, Promise<string | null>>()
+
+function clearSlideImageCache() {
+  for (const url of slideImageCache.values()) {
+    URL.revokeObjectURL(url)
+  }
+  slideImageCache.clear()
+  slideImagePending.clear()
+}
+
+async function resolveSlideImageUrl(imageUrl: string): Promise<string | null> {
+  if (!imageUrl) return null
+  const cached = slideImageCache.get(imageUrl)
+  if (cached) return cached
+  const pending = slideImagePending.get(imageUrl)
+  if (pending) return pending
+
+  const task = (async () => {
+    try {
+      const token = (await loadSettings()).token.trim()
+      if (!token) return null
+      const res = await fetch(imageUrl, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return null
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      slideImageCache.set(imageUrl, objectUrl)
+      return objectUrl
+    } catch {
+      return null
+    } finally {
+      slideImagePending.delete(imageUrl)
+    }
+  })()
+
+  slideImagePending.set(imageUrl, task)
+  return task
+}
+
+async function setSlideImage(img: HTMLImageElement, imageUrl: string) {
+  if (!imageUrl) return
+  const cached = slideImageCache.get(imageUrl)
+  if (cached) {
+    img.src = cached
+    return
+  }
+  img.dataset.slideImageUrl = imageUrl
+  const resolved = await resolveSlideImageUrl(imageUrl)
+  if (!resolved) return
+  if (img.dataset.slideImageUrl !== imageUrl) return
+  img.src = resolved
+}
+
 async function fetchSlideTools(): Promise<{
   ok: boolean
   missing: string[]
@@ -802,6 +855,7 @@ function resetSummaryView({ preserveChat = false }: { preserveChat?: boolean } =
   panelState.summaryFromCache = null
   panelState.slides = null
   if (!preserveChat) {
+    clearSlideImageCache()
     resetChatState()
   }
 }
@@ -870,12 +924,9 @@ const slideModal = (() => {
   }
 })()
 
-function openSlideModal(slide: {
-  index: number
-  imageUrl: string
-  ocrText?: string | null
-}) {
-  slideModal.image.src = slide.imageUrl
+function openSlideModal(slide: { index: number; imageUrl: string; ocrText?: string | null }) {
+  slideModal.image.removeAttribute('src')
+  void setSlideImage(slideModal.image, slide.imageUrl)
   slideModal.title.textContent = `Slide ${slide.index}`
   slideModal.text.textContent = slide.ocrText?.trim() || 'No OCR text available.'
   slideModal.root.dataset.open = 'true'
@@ -896,8 +947,8 @@ function renderInlineSlides(container: HTMLElement) {
     const button = document.createElement('button')
     button.type = 'button'
     const img = document.createElement('img')
-    img.src = slide.imageUrl
     img.alt = `Slide ${index}`
+    void setSlideImage(img, slide.imageUrl)
     const caption = document.createElement('div')
     caption.className = 'slideCaption'
     caption.textContent = `Slide ${index}`
@@ -2219,6 +2270,12 @@ function handleBgMessage(msg: BgToPanel) {
       panelState.currentSource = { url: msg.run.url, title: msg.run.title }
       panelState.lastMeta = { inputSummary: null, model: null, modelLabel: null }
       void streamController.start(msg.run)
+      return
+    case 'chat:history':
+      handleChatHistoryResponse(msg)
+      return
+    case 'agent:chunk':
+      handleAgentChunk(msg)
       return
     }
     case 'chat:history':

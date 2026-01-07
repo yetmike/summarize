@@ -44,8 +44,7 @@ pnpm summarize -- --extract "https://www.youtube.com/watch?v=I845O57ZSy4&t=11s"
 ## Slides
 
 Use `--slides` to extract slide screenshots for YouTube videos (requires `ffmpeg` and `yt-dlp`).
-Scene detection auto-tunes the threshold using sampled frame hashes and, when confidence is low,
-tries an LLM ROI crop to ignore speaker insets:
+Scene detection auto-tunes the threshold using sampled frame hashes:
 
 ```bash
 summarize "https://www.youtube.com/watch?v=..." --slides

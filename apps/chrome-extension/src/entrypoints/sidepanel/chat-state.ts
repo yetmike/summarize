@@ -12,28 +12,16 @@ export type ChatContextUsage = {
 }
 
 function messageTextLength(message: ChatMessage): number {
-  if (message.role === 'user') {
-    if (typeof message.content === 'string') return message.content.length
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('').length
+  if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'toolResult') {
+    return 0
   }
-  if (message.role === 'assistant') {
-    if (typeof message.content === 'string') return message.content.length
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('').length
-  }
-  if (message.role === 'toolResult') {
-    if (typeof message.content === 'string') return message.content.length
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('').length
-  }
-  return 0
+  const { content } = message
+  if (typeof content === 'string') return content.length
+  if (!Array.isArray(content)) return 0
+  return content
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('').length
 }
 
 export function compactChatHistory(
@@ -72,6 +60,6 @@ export function hasUserChatMessage(messages: ChatMessage[]): boolean {
 
 export function buildChatRequestMessages(messages: ChatMessage[]) {
   return messages
-    .filter((message) => messageTextLength(message) > 0)
+    .filter((msg) => msg.role === 'toolResult' || messageTextLength(msg) > 0)
     .map(({ id: _id, timestamp: _timestamp, ...rest }) => rest)
 }

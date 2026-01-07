@@ -251,9 +251,7 @@ export async function loadSettings(): Promise<Settings> {
         ? raw.automationEnabled
         : defaultSettings.automationEnabled,
     slidesEnabled:
-      typeof raw.slidesEnabled === 'boolean'
-        ? raw.slidesEnabled
-        : defaultSettings.slidesEnabled,
+      typeof raw.slidesEnabled === 'boolean' ? raw.slidesEnabled : defaultSettings.slidesEnabled,
     summaryTimestamps:
       typeof raw.summaryTimestamps === 'boolean'
         ? raw.summaryTimestamps

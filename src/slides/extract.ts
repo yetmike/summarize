@@ -6,18 +6,9 @@ import path from 'node:path'
 
 import type { ExtractedLinkContent } from '../content/index.js'
 import { extractYouTubeVideoId, isDirectMediaUrl, isYouTubeUrl } from '../content/index.js'
-import { generateTextWithModelId } from '../llm/generate-text.js'
-import type { Prompt } from '../llm/prompt.js'
 import { resolveExecutableInPath } from '../run/env.js'
 import type { SlideSettings } from './settings.js'
-import type {
-  SlideAutoTune,
-  SlideExtractionResult,
-  SlideImage,
-  SlideLlmConfig,
-  SlideRoi,
-  SlideSource,
-} from './types.js'
+import type { SlideAutoTune, SlideExtractionResult, SlideImage, SlideSource } from './types.js'
 
 const FFMPEG_TIMEOUT_FALLBACK_MS = 300_000
 const YT_DLP_TIMEOUT_MS = 300_000
@@ -43,17 +34,6 @@ function resolveSlidesWorkers(env: Record<string, string | undefined>): number {
   const parsed = Number(raw)
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_SLIDES_WORKERS
   return Math.max(1, Math.min(16, Math.round(parsed)))
-}
-
-function resolveSlidesRoiEnabled(env: Record<string, string | undefined>): boolean {
-  const raw = env.SUMMARIZE_SLIDES_ROI ?? env.SLIDES_ROI
-  if (raw == null) return false
-  if (typeof raw === 'boolean') return raw
-  const normalized = String(raw).trim().toLowerCase()
-  if (!normalized) return false
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true
-  if (['0', 'false', 'no', 'off'].includes(normalized)) return false
-  return false
 }
 
 function resolveSlidesSampleCount(env: Record<string, string | undefined>): number {
@@ -94,7 +74,6 @@ function resolveSlidesExtractStream(env: Record<string, string | undefined>): bo
 type ExtractSlidesArgs = {
   source: SlideSource
   settings: SlideSettings
-  llm?: SlideLlmConfig | null
   env: Record<string, string | undefined>
   timeoutMs: number
   ytDlpPath: string | null
@@ -148,7 +127,6 @@ export function resolveSlideSource({
 export async function extractSlidesForSource({
   source,
   settings,
-  llm,
   env,
   timeoutMs,
   ytDlpPath,
@@ -159,7 +137,7 @@ export async function extractSlidesForSource({
   const workers = resolveSlidesWorkers(env)
   const totalStartedAt = Date.now()
   logSlides(
-    `pipeline=download(sequential)->scene-detect(parallel:${workers})->extract-frames(parallel:${workers})->ocr(parallel:${workers})`
+    `pipeline=ingest(sequential)->scene-detect(parallel:${workers})->extract-frames(parallel:${workers})->ocr(parallel:${workers})`
   )
 
   const ffmpegBinary = ffmpegPath ?? resolveExecutableInPath('ffmpeg', env)
@@ -186,35 +164,105 @@ export async function extractSlidesForSource({
   let detectionInputPath = source.url
   let detectionCleanup: (() => Promise<void>) | null = null
   let extractionCleanup: (() => Promise<void>) | null = null
+  let detectionUsesStream = false
 
   if (source.kind === 'youtube') {
     if (!ytDlpPath) {
       throw new Error('Slides for YouTube require yt-dlp (set YT_DLP_PATH or install yt-dlp).')
     }
-    const downloadStartedAt = Date.now()
+    const ytDlp = ytDlpPath
     const format = resolveSlidesYtDlpDetectFormat(env)
-    const downloaded = await downloadYoutubeVideo({ ytDlpPath, url: source.url, timeoutMs, format })
-    detectionInputPath = downloaded.filePath
-    detectionCleanup = downloaded.cleanup
-    logSlidesTiming(`yt-dlp download (detect, format=${format})`, downloadStartedAt)
+    const streamStartedAt = Date.now()
+    try {
+      const streamUrl = await resolveYoutubeStreamUrl({
+        ytDlpPath: ytDlp,
+        url: source.url,
+        format,
+        timeoutMs,
+      })
+      detectionInputPath = streamUrl
+      detectionUsesStream = true
+      logSlidesTiming(`yt-dlp stream url (detect, format=${format})`, streamStartedAt)
+    } catch (error) {
+      warnings.push(`Failed to resolve detection stream URL: ${String(error)}`)
+      const downloadStartedAt = Date.now()
+      const downloaded = await downloadYoutubeVideo({
+        ytDlpPath: ytDlp,
+        url: source.url,
+        timeoutMs,
+        format,
+      })
+      detectionInputPath = downloaded.filePath
+      detectionCleanup = downloaded.cleanup
+      logSlidesTiming(`yt-dlp download (detect, format=${format})`, downloadStartedAt)
+    }
   }
 
   try {
     const ffmpegStartedAt = Date.now()
-    const detection = await detectSlideTimestamps({
-      ffmpegPath: ffmpegBinary,
-      ffprobePath: ffprobeBinary,
-      inputPath: detectionInputPath,
-      sceneThreshold: settings.sceneThreshold,
-      autoTuneThreshold: settings.autoTuneThreshold,
-      llm,
-      env,
-      timeoutMs,
-      warnings,
-      workers,
-      sampleCount: resolveSlidesSampleCount(env),
-    })
-    logSlidesTiming('ffmpeg scene-detect', ffmpegStartedAt)
+    const detect = async () =>
+      detectSlideTimestamps({
+        ffmpegPath: ffmpegBinary,
+        ffprobePath: ffprobeBinary,
+        inputPath: detectionInputPath,
+        sceneThreshold: settings.sceneThreshold,
+        autoTuneThreshold: settings.autoTuneThreshold,
+        env,
+        timeoutMs,
+        warnings,
+        workers,
+        sampleCount: resolveSlidesSampleCount(env),
+      })
+    let detection: Awaited<ReturnType<typeof detect>>
+    try {
+      detection = await detect()
+      logSlidesTiming('ffmpeg scene-detect', ffmpegStartedAt)
+    } catch (error) {
+      if (source.kind !== 'youtube' || !detectionUsesStream) {
+        throw error
+      }
+      warnings.push(`Scene detection failed on stream URL; retrying download: ${String(error)}`)
+      if (!ytDlpPath) {
+        throw new Error('Slides for YouTube require yt-dlp (set YT_DLP_PATH or install yt-dlp).')
+      }
+      const format = resolveSlidesYtDlpDetectFormat(env)
+      const downloadStartedAt = Date.now()
+      const downloaded = await downloadYoutubeVideo({
+        ytDlpPath,
+        url: source.url,
+        timeoutMs,
+        format,
+      })
+      detectionInputPath = downloaded.filePath
+      detectionCleanup = downloaded.cleanup
+      detectionUsesStream = false
+      logSlidesTiming(`yt-dlp download (detect, format=${format})`, downloadStartedAt)
+      const retryStartedAt = Date.now()
+      detection = await detect()
+      logSlidesTiming('ffmpeg scene-detect (retry)', retryStartedAt)
+    }
+
+    if (source.kind === 'youtube' && detectionUsesStream && detection.timestamps.length === 0) {
+      warnings.push('Scene detection returned zero timestamps on stream URL; retrying download.')
+      if (!ytDlpPath) {
+        throw new Error('Slides for YouTube require yt-dlp (set YT_DLP_PATH or install yt-dlp).')
+      }
+      const format = resolveSlidesYtDlpDetectFormat(env)
+      const downloadStartedAt = Date.now()
+      const downloaded = await downloadYoutubeVideo({
+        ytDlpPath,
+        url: source.url,
+        timeoutMs,
+        format,
+      })
+      detectionInputPath = downloaded.filePath
+      detectionCleanup = downloaded.cleanup
+      detectionUsesStream = false
+      logSlidesTiming(`yt-dlp download (detect, format=${format})`, downloadStartedAt)
+      const retryStartedAt = Date.now()
+      detection = await detect()
+      logSlidesTiming('ffmpeg scene-detect (retry)', retryStartedAt)
+    }
 
     if (detection.timestamps.length === 0) {
       throw new Error('No slides detected; try adjusting slide extraction settings.')
@@ -222,6 +270,9 @@ export async function extractSlidesForSource({
 
     let extractionInputPath = detectionInputPath
     if (source.kind === 'youtube') {
+      if (!ytDlpPath) {
+        throw new Error('Slides for YouTube require yt-dlp (set YT_DLP_PATH or install yt-dlp).')
+      }
       const extractionFormat = resolveSlidesYtDlpExtractFormat(env)
       const detectionFormat = resolveSlidesYtDlpDetectFormat(env)
       if (resolveSlidesExtractStream(env)) {
@@ -253,10 +304,10 @@ export async function extractSlidesForSource({
         })
         extractionInputPath = extracted.filePath
         extractionCleanup = extracted.cleanup
-          logSlidesTiming(
-            `yt-dlp download (extract, format=${extractionFormat})`,
-            extractDownloadStartedAt
-          )
+        logSlidesTiming(
+          `yt-dlp download (extract, format=${extractionFormat})`,
+          extractDownloadStartedAt
+        )
       }
     }
 
@@ -446,7 +497,6 @@ async function detectSlideTimestamps({
   inputPath,
   sceneThreshold,
   autoTuneThreshold,
-  llm,
   env,
   timeoutMs,
   warnings,
@@ -458,7 +508,6 @@ async function detectSlideTimestamps({
   inputPath: string
   sceneThreshold: number
   autoTuneThreshold: boolean
-  llm?: SlideLlmConfig | null
   env: Record<string, string | undefined>
   timeoutMs: number
   warnings: string[]
@@ -474,31 +523,9 @@ async function detectSlideTimestamps({
   })
   logSlidesTiming('ffprobe video info', probeStartedAt)
 
-  let roi: SlideRoi | null = null
-  let crop: CropRect | null = null
-  if (autoTuneThreshold && resolveSlidesRoiEnabled(env)) {
-    const roiStartedAt = Date.now()
-    roi = await detectSlideRoiWithLlm({
-      ffmpegPath,
-      inputPath,
-      videoInfo,
-      llm,
-      warnings,
-      timeoutMs,
-    })
-    logSlidesTiming('roi detect (llm)', roiStartedAt)
-    if (roi && videoInfo.width && videoInfo.height) {
-      crop = resolveCropFromRoi(roi, videoInfo)
-      if (!crop) {
-        warnings.push('LLM ROI was rejected; falling back to full-frame detection.')
-      }
-    }
-  }
-
   const calibration = await calibrateSceneThreshold({
     ffmpegPath,
     inputPath,
-    crop,
     durationSeconds: videoInfo.durationSeconds,
     sampleCount,
     timeoutMs,
@@ -518,7 +545,6 @@ async function detectSlideTimestamps({
     ffmpegPath,
     inputPath,
     threshold: effectiveThreshold,
-    crop,
     timeoutMs,
     segments,
     workers,
@@ -536,7 +562,6 @@ async function detectSlideTimestamps({
         ffmpegPath,
         inputPath,
         threshold: fallbackThreshold,
-        crop,
         timeoutMs,
         segments,
         workers,
@@ -559,15 +584,13 @@ async function detectSlideTimestamps({
         enabled: true,
         chosenThreshold: timestamps.length > 0 ? effectiveThreshold : baseThreshold,
         confidence: calibration.confidence,
-        strategy: roi ? 'llm-roi' : 'hash',
-        roi,
+        strategy: 'hash',
       }
     : {
         enabled: false,
         chosenThreshold: baseThreshold,
         confidence: 0,
         strategy: 'none',
-        roi: null,
       }
 
   return { timestamps, autoTune }
@@ -623,8 +646,6 @@ async function extractFramesAtTimestamps({
   return slides
 }
 
-type CropRect = { x: number; y: number; width: number; height: number }
-
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min
   if (value > max) return max
@@ -676,14 +697,12 @@ function roundThreshold(value: number): number {
 async function calibrateSceneThreshold({
   ffmpegPath,
   inputPath,
-  crop,
   durationSeconds,
   sampleCount,
   timeoutMs,
 }: {
   ffmpegPath: string
   inputPath: string
-  crop: CropRect | null
   durationSeconds: number | null
   sampleCount: number
   timeoutMs: number
@@ -699,7 +718,6 @@ async function calibrateSceneThreshold({
       ffmpegPath,
       inputPath,
       timestamp,
-      crop,
       timeoutMs,
     })
     if (hash) hashes.push(hash)
@@ -732,317 +750,6 @@ async function calibrateSceneThreshold({
   return { threshold, confidence }
 }
 
-function resolveCropFromRoi(
-  roi: SlideRoi,
-  videoInfo: { width: number | null; height: number | null }
-): CropRect | null {
-  if (!videoInfo.width || !videoInfo.height) return null
-  const x = Math.round(roi.x * videoInfo.width)
-  const y = Math.round(roi.y * videoInfo.height)
-  const width = Math.round(roi.width * videoInfo.width)
-  const height = Math.round(roi.height * videoInfo.height)
-  if (width < 16 || height < 16) return null
-  const safeX = clamp(x, 0, videoInfo.width - 1)
-  const safeY = clamp(y, 0, videoInfo.height - 1)
-  const safeWidth = clamp(width, 16, videoInfo.width - safeX)
-  const safeHeight = clamp(height, 16, videoInfo.height - safeY)
-  return { x: safeX, y: safeY, width: safeWidth, height: safeHeight }
-}
-
-async function detectSlideRoiWithLlm({
-  ffmpegPath,
-  inputPath,
-  videoInfo,
-  llm,
-  warnings,
-  timeoutMs,
-}: {
-  ffmpegPath: string
-  inputPath: string
-  videoInfo: { durationSeconds: number | null; width: number | null; height: number | null }
-  llm?: SlideLlmConfig | null
-  warnings: string[]
-  timeoutMs: number
-}): Promise<SlideRoi | null> {
-  if (!llm || llm.attempts.length === 0) return null
-  const timestamps = buildRoiSampleTimestamps(videoInfo.durationSeconds)
-  if (timestamps.length === 0) return null
-
-  const roiDir = await fs.mkdtemp(path.join(tmpdir(), `summarize-roi-${randomUUID()}-`))
-  try {
-    const framePaths: string[] = []
-    for (let i = 0; i < timestamps.length; i += 1) {
-      const outputPath = path.join(roiDir, `roi_${i + 1}.png`)
-      await extractFrameForRoi({
-        ffmpegPath,
-        inputPath,
-        timestamp: timestamps[i],
-        outputPath,
-        timeoutMs,
-      })
-      framePaths.push(outputPath)
-    }
-
-    const { roi, modelId } = await inferSlideRoiFromFrames({
-      framePaths,
-      llm,
-      warnings,
-      timeoutMs,
-    })
-    if (roi && modelId) {
-      warnings.push(`LLM ROI model ${modelId} selected for slide tuning`)
-    }
-    return roi
-  } catch (error) {
-    warnings.push(`LLM ROI detection failed: ${String(error)}`)
-    return null
-  } finally {
-    await fs.rm(roiDir, { recursive: true, force: true })
-  }
-}
-
-function buildRoiSampleTimestamps(durationSeconds: number | null): number[] {
-  if (!durationSeconds || durationSeconds <= 0) return [0]
-  const points = [0.12, 0.5, 0.85]
-  return points.map((ratio) => clamp(durationSeconds * ratio, 0, durationSeconds - 0.1))
-}
-
-async function extractFrameForRoi({
-  ffmpegPath,
-  inputPath,
-  timestamp,
-  outputPath,
-  timeoutMs,
-}: {
-  ffmpegPath: string
-  inputPath: string
-  timestamp: number
-  outputPath: string
-  timeoutMs: number
-}): Promise<void> {
-  const args = [
-    '-hide_banner',
-    '-ss',
-    String(timestamp),
-    '-i',
-    inputPath,
-    '-vframes',
-    '1',
-    '-vf',
-    'scale=960:-2',
-    '-q:v',
-    '2',
-    '-an',
-    '-sn',
-    outputPath,
-  ]
-  await runProcess({
-    command: ffmpegPath,
-    args,
-    timeoutMs,
-    errorLabel: 'ffmpeg',
-  })
-}
-
-async function inferSlideRoiFromFrames({
-  framePaths,
-  llm,
-  warnings,
-  timeoutMs,
-}: {
-  framePaths: string[]
-  llm: SlideLlmConfig
-  warnings: string[]
-  timeoutMs: number
-}): Promise<{ roi: SlideRoi | null; modelId: string | null }> {
-  for (const attempt of llm.attempts) {
-    const apiKeysForAttempt = {
-      xaiApiKey: llm.apiKeys.xaiApiKey,
-      openaiApiKey: attempt.openaiApiKeyOverride ?? llm.apiKeys.openaiApiKey,
-      googleApiKey: llm.keyFlags.googleConfigured ? llm.apiKeys.googleApiKey : null,
-      anthropicApiKey: llm.keyFlags.anthropicConfigured ? llm.apiKeys.anthropicApiKey : null,
-      openrouterApiKey: llm.keyFlags.openrouterConfigured ? llm.apiKeys.openrouterApiKey : null,
-    }
-    if (!hasApiKeyForAttempt(attempt, llm, apiKeysForAttempt)) continue
-
-    let lastRoi: SlideRoi | null = null
-    const rois: SlideRoi[] = []
-    for (const framePath of framePaths) {
-      const roi = await inferSlideRoiFromFrame({
-        attempt,
-        framePath,
-        llm,
-        apiKeysForAttempt,
-        warnings,
-        timeoutMs,
-      })
-      if (roi) {
-        rois.push(roi)
-        lastRoi = roi
-      }
-    }
-    const merged = mergeRois(rois)
-    if (merged) return { roi: merged, modelId: attempt.userModelId }
-    if (lastRoi) return { roi: lastRoi, modelId: attempt.userModelId }
-  }
-  warnings.push('No LLM ROI model succeeded; continuing without ROI.')
-  return { roi: null, modelId: null }
-}
-
-function hasApiKeyForAttempt(
-  attempt: SlideLlmConfig['attempts'][number],
-  llm: SlideLlmConfig,
-  apiKeysForAttempt: {
-    xaiApiKey: string | null
-    openaiApiKey: string | null
-    googleApiKey: string | null
-    anthropicApiKey: string | null
-    openrouterApiKey: string | null
-  }
-): boolean {
-  if (attempt.requiredEnv === 'GEMINI_API_KEY') return llm.keyFlags.googleConfigured
-  if (attempt.requiredEnv === 'ANTHROPIC_API_KEY') return llm.keyFlags.anthropicConfigured
-  if (attempt.requiredEnv === 'OPENROUTER_API_KEY') return llm.keyFlags.openrouterConfigured
-  if (attempt.requiredEnv === 'XAI_API_KEY') return Boolean(apiKeysForAttempt.xaiApiKey)
-  if (attempt.requiredEnv === 'Z_AI_API_KEY') return Boolean(llm.apiKeys.zaiApiKey)
-  return Boolean(apiKeysForAttempt.openaiApiKey)
-}
-
-async function inferSlideRoiFromFrame({
-  attempt,
-  framePath,
-  llm,
-  apiKeysForAttempt,
-  warnings,
-  timeoutMs,
-}: {
-  attempt: SlideLlmConfig['attempts'][number]
-  framePath: string
-  llm: SlideLlmConfig
-  apiKeysForAttempt: {
-    xaiApiKey: string | null
-    openaiApiKey: string | null
-    googleApiKey: string | null
-    anthropicApiKey: string | null
-    openrouterApiKey: string | null
-  }
-  warnings: string[]
-  timeoutMs: number
-}): Promise<SlideRoi | null> {
-  const bytes = await fs.readFile(framePath)
-  const prompt = buildRoiPrompt(bytes)
-  const forceChatCompletions =
-    Boolean(attempt.forceChatCompletions) ||
-    (llm.openaiUseChatCompletions && attempt.llmModelId.startsWith('openai/'))
-
-  try {
-    const result = await generateTextWithModelId({
-      modelId: attempt.llmModelId,
-      apiKeys: apiKeysForAttempt,
-      prompt,
-      temperature: 0,
-      maxOutputTokens: 200,
-      timeoutMs,
-      fetchImpl: llm.fetchImpl,
-      forceOpenRouter: attempt.forceOpenRouter,
-      openaiBaseUrlOverride: attempt.openaiBaseUrlOverride ?? llm.providerBaseUrls.openai,
-      anthropicBaseUrlOverride: llm.providerBaseUrls.anthropic,
-      googleBaseUrlOverride: llm.providerBaseUrls.google,
-      xaiBaseUrlOverride: llm.providerBaseUrls.xai,
-      forceChatCompletions,
-      retries: 1,
-    })
-    return parseSlideRoi(result.text)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (llm.verbose) {
-      warnings.push(`ROI model ${attempt.userModelId} failed: ${message}`)
-    }
-    return null
-  }
-}
-
-function buildRoiPrompt(imageBytes: Uint8Array): Prompt {
-  return {
-    system: 'You are a vision assistant. Return ONLY JSON or null. No extra text.',
-    userText:
-      'Find the rectangular region that contains the main slide content while excluding any live speaker video inset or webcam box. Reply with JSON: {"x":0-1,"y":0-1,"width":0-1,"height":0-1,"confidence":0-1}. If unsure, reply null.',
-    attachments: [
-      {
-        kind: 'image',
-        mediaType: 'image/png',
-        bytes: imageBytes,
-        filename: 'slide.png',
-      },
-    ],
-  }
-}
-
-function parseSlideRoi(text: string): SlideRoi | null {
-  const trimmed = text.trim()
-  if (!trimmed || trimmed === 'null') return null
-  const jsonMatch = trimmed.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return null
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>
-    const x = normalizeRoiValue(parsed.x ?? parsed.left)
-    const y = normalizeRoiValue(parsed.y ?? parsed.top)
-    const width = normalizeRoiValue(parsed.width ?? parsed.w)
-    const height = normalizeRoiValue(parsed.height ?? parsed.h)
-    const right = normalizeRoiValue(parsed.right)
-    const bottom = normalizeRoiValue(parsed.bottom)
-    const finalWidth = width ?? (right != null && x != null ? right - x : null)
-    const finalHeight = height ?? (bottom != null && y != null ? bottom - y : null)
-    if (
-      x == null ||
-      y == null ||
-      finalWidth == null ||
-      finalHeight == null ||
-      finalWidth <= 0 ||
-      finalHeight <= 0
-    ) {
-      return null
-    }
-    const roi = {
-      x: clamp(x, 0, 1),
-      y: clamp(y, 0, 1),
-      width: clamp(finalWidth, 0, 1),
-      height: clamp(finalHeight, 0, 1),
-    }
-    if (roi.width < 0.2 || roi.height < 0.2) return null
-    return roi
-  } catch {
-    return null
-  }
-}
-
-function normalizeRoiValue(value: unknown): number | null {
-  if (value == null) return null
-  const numeric = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(numeric)) return null
-  if (numeric > 1 && numeric <= 100) return numeric / 100
-  return numeric
-}
-
-function mergeRois(rois: SlideRoi[]): SlideRoi | null {
-  if (rois.length === 0) return null
-  const sorted = [...rois]
-  const pickMedian = (values: number[]) => {
-    const list = [...values].sort((a, b) => a - b)
-    return list[Math.floor(list.length / 2)] ?? 0.5
-  }
-  const xs = sorted.map((roi) => roi.x)
-  const ys = sorted.map((roi) => roi.y)
-  const ws = sorted.map((roi) => roi.width)
-  const hs = sorted.map((roi) => roi.height)
-  return {
-    x: pickMedian(xs),
-    y: pickMedian(ys),
-    width: pickMedian(ws),
-    height: pickMedian(hs),
-  }
-}
-
 function buildSegments(
   durationSeconds: number | null,
   workers: number
@@ -1067,7 +774,6 @@ async function detectSceneTimestamps({
   ffmpegPath,
   inputPath,
   threshold,
-  crop,
   timeoutMs,
   segments,
   workers,
@@ -1075,15 +781,11 @@ async function detectSceneTimestamps({
   ffmpegPath: string
   inputPath: string
   threshold: number
-  crop: { x: number; y: number; width: number; height: number } | null
   timeoutMs: number
   segments?: Array<{ start: number; duration: number }>
   workers?: number
 }): Promise<number[]> {
-  const cropFilter = crop ? `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y}` : null
-  const filter = cropFilter
-    ? `${cropFilter},select='gt(scene,${threshold})',showinfo`
-    : `select='gt(scene,${threshold})',showinfo`
+  const filter = `select='gt(scene,${threshold})',showinfo`
   const defaultSegments = [{ start: 0, duration: 0 }]
   const usedSegments = segments && segments.length > 0 ? segments : defaultSegments
   const concurrency = workers && workers > 0 ? workers : 1
@@ -1098,7 +800,7 @@ async function detectSceneTimestamps({
       inputPath,
       '-vf',
       filter,
-      '-vsync',
+      '-fps_mode',
       'vfr',
       '-an',
       '-sn',
@@ -1130,17 +832,14 @@ async function hashFrameAtTimestamp({
   ffmpegPath,
   inputPath,
   timestamp,
-  crop,
   timeoutMs,
 }: {
   ffmpegPath: string
   inputPath: string
   timestamp: number
-  crop: CropRect | null
   timeoutMs: number
 }): Promise<Uint8Array | null> {
-  const cropFilter = crop ? `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y}` : null
-  const filter = cropFilter ? `${cropFilter},scale=32:32,format=gray` : 'scale=32:32,format=gray'
+  const filter = 'scale=32:32,format=gray'
   const args = [
     '-hide_banner',
     '-ss',

@@ -53,9 +53,11 @@ export type DaemonUrlFlowContextArgs = {
   hooks?: {
     onModelChosen?: ((modelId: string) => void) | null
     onExtracted?: ((extracted: ExtractedLinkContent) => void) | null
-    onSlidesExtracted?: ((slides: Awaited<
-      ReturnType<typeof import('../slides/index.js').extractSlidesForSource>
-    >) => void) | null
+    onSlidesExtracted?:
+      | ((
+          slides: Awaited<ReturnType<typeof import('../slides/index.js').extractSlidesForSource>>
+        ) => void)
+      | null
     onLinkPreviewProgress?: ((event: LinkPreviewProgressEvent) => void) | null
     onSummaryCached?: ((cached: boolean) => void) | null
   } | null

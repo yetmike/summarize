@@ -267,26 +267,13 @@ export class ChatController {
 }
 
 function extractText(message: ChatMessage): string {
-  if (message.role === 'user') {
-    if (typeof message.content === 'string') return message.content
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('')
-  }
-  if (message.role === 'assistant') {
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('')
-  }
-  if (message.role === 'toolResult') {
-    return message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('')
-  }
-  return ''
+  const { content } = message
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
 }
 
 type ToolAttachment = { fileName: string; mimeType: string; contentBase64: string }
@@ -324,11 +311,14 @@ function splitAssistantMessage(message: ChatMessage): {
   text: string
   toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>
 } {
-  const text = message.content
+  const { content } = message
+  if (typeof content === 'string') return { text: content, toolCalls: [] }
+  if (!Array.isArray(content)) return { text: '', toolCalls: [] }
+  const text = content
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('')
-  const toolCalls = message.content
+  const toolCalls = content
     .filter((part) => part.type === 'toolCall')
     .map((call) => ({ name: call.name, arguments: call.arguments }))
   return { text, toolCalls }

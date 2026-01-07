@@ -5,9 +5,6 @@ export type {
   SlideAutoTune,
   SlideExtractionResult,
   SlideImage,
-  SlideLlmAttempt,
-  SlideLlmConfig,
-  SlideRoi,
   SlideSource,
   SlideSourceKind,
 } from './types.js'
