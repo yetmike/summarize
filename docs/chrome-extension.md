@@ -164,7 +164,7 @@ Problem: daemon must be secured; extension must discover and pair with it.
     - `language?: string` (e.g. `auto`, `en`, `de`, `pt-BR`)
     - `prompt?: string` (custom instruction prefix)
     - `mode?: "auto" | "page" | "url"` (default: `"auto"`)
-    - `maxCharacters?: number | null` (caps URL-mode extraction before summarization)
+    - `maxCharacters?: number | null` (caps URL-mode extraction before summarization; ignored for extract-only unless explicitly provided)
     - `format?: "text" | "markdown"` (default: `"text"`)
     - `markdownMode?: "readability" | "auto" | "llm" | "off"` (only when `format: "markdown"`)
     - `preprocess?: "off" | "auto" | "always"` (markitdown/HTML preprocess)

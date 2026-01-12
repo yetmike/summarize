@@ -453,10 +453,15 @@ export async function runDaemonServer({
         const modeRaw = typeof obj.mode === 'string' ? obj.mode.trim().toLowerCase() : ''
         const mode: DaemonRequestedMode =
           modeRaw === 'url' ? 'url' : modeRaw === 'page' ? 'page' : 'auto'
-        const maxCharacters =
-          typeof obj.maxCharacters === 'number' && Number.isFinite(obj.maxCharacters)
-            ? obj.maxCharacters
-            : null
+        const maxCharactersCandidate =
+          typeof obj.maxExtractCharacters === 'number' && Number.isFinite(obj.maxExtractCharacters)
+            ? obj.maxExtractCharacters
+            : typeof obj.maxCharacters === 'number' && Number.isFinite(obj.maxCharacters)
+              ? obj.maxCharacters
+              : null
+        const maxCharacters = maxCharactersCandidate && maxCharactersCandidate > 0
+          ? maxCharactersCandidate
+          : null
         const formatRaw = typeof obj.format === 'string' ? obj.format.trim().toLowerCase() : ''
         const format: 'text' | 'markdown' =
           formatRaw === 'markdown' || formatRaw === 'md' ? 'markdown' : 'text'

@@ -51,9 +51,6 @@ export function resolveMaxCharacters(options?: FetchLinkContentOptions): number 
   if (typeof candidate !== 'number' || !Number.isFinite(candidate) || candidate <= 0) {
     return null
   }
-  if (candidate <= DEFAULT_MAX_CONTENT_CHARACTERS) {
-    return DEFAULT_MAX_CONTENT_CHARACTERS
-  }
   return Math.floor(candidate)
 }
 
