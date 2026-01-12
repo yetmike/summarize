@@ -459,9 +459,8 @@ export async function runDaemonServer({
             : typeof obj.maxCharacters === 'number' && Number.isFinite(obj.maxCharacters)
               ? obj.maxCharacters
               : null
-        const maxCharacters = maxCharactersCandidate && maxCharactersCandidate > 0
-          ? maxCharactersCandidate
-          : null
+        const maxCharacters =
+          maxCharactersCandidate && maxCharactersCandidate > 0 ? maxCharactersCandidate : null
         const formatRaw = typeof obj.format === 'string' ? obj.format.trim().toLowerCase() : ''
         const format: 'text' | 'markdown' =
           formatRaw === 'markdown' || formatRaw === 'md' ? 'markdown' : 'text'

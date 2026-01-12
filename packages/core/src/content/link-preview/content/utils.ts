@@ -3,7 +3,6 @@ import type { CacheMode, TranscriptDiagnostics } from '../types.js'
 import { applyContentBudget, normalizeCandidate, normalizeForPrompt } from './cleaner.js'
 import {
   DEFAULT_CACHE_MODE,
-  DEFAULT_MAX_CONTENT_CHARACTERS,
   DEFAULT_TIMEOUT_MS,
   type ExtractedLinkContent,
   type FetchLinkContentOptions,
