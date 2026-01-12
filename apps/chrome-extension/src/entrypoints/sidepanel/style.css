@@ -451,7 +451,8 @@ html {
       880px 520px at 110% 12%,
       color-mix(in srgb, var(--accent) 12%, transparent),
       transparent 60%
-    ), linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 65%, var(--bg2) 100%);
+    ),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 65%, var(--bg2) 100%);
   background-attachment: fixed;
 }
 
@@ -1355,7 +1356,8 @@ header.isRunning.isIndeterminate .progressFill {
       transparent 0%,
       color-mix(in srgb, var(--ui-focus) 85%, transparent) 35%,
       transparent 70%
-    ), color-mix(in srgb, var(--ui-focus) 35%, transparent);
+    ),
+    color-mix(in srgb, var(--ui-focus) 35%, transparent);
   background-size: 100% 100%;
   animation: progressBounce 1.6s cubic-bezier(0.35, 0, 0.25, 1) infinite alternate;
 }
