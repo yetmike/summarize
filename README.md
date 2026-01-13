@@ -1,26 +1,24 @@
-# Summarize 👉 Point at any URL or file. Get the gist.
+# Summarize — Chrome Side Panel + CLI
 
-Fast summaries from URLs, files, and media. Works in the terminal, a Chrome Side Panel and Firefox Side Panel
+Fast summaries from URLs, files, and media. Works in the terminal, a Chrome Side Panel and Firefox Sidebar.
 
-## Big features
+**0.10.0 preview (unreleased):** this README reflects the upcoming release.
 
-- URLs, files, and media: web pages, PDFs, images, audio/video, YouTube, podcasts, RSS.
-- Real extraction pipeline: fetch -> clean -> Markdown (readability + markitdown), Firecrawl fallback when blocked.
-- Transcript-first media flow: published transcripts when available, Whisper fallback when not.
-- YouTube slide screenshots from the browser (Side Panel).
-- Streaming TTY output with Markdown rendering (markdansi) and scrollback-safe formatting.
-- Local, paid, and free models: OpenAI-compatible local endpoints, paid providers, plus an OpenRouter free preset.
-- Output modes: Markdown/text, JSON diagnostics, extract-only, metrics, timing, and cost estimates.
+## 0.10.0 preview highlights (most interesting first)
 
-## Browser Extension (Side Panel + Sidebar)
+- Chrome Side Panel **chat** (streaming agent + history) inside the sidebar.
+- **YouTube slides**: screenshots + OCR, timestamped summaries, click to seek.
+- Media-aware summaries: auto‑detect video/audio vs page content.
+- Streaming Markdown + metrics + cache‑aware status.
+- CLI supports URLs, files, podcasts, YouTube, audio/video, PDFs.
+
+## Get the extension (recommended)
 
 ![Summarize extension screenshot](docs/assets/summarize-extension.png)
 
-One-click summarizer for the current tab. Chrome Side Panel + Firefox Sidebar + local daemon for streaming Markdown.
+One‑click summarizer for the current tab. Chrome Side Panel + Firefox Sidebar + local daemon for streaming Markdown.
 
-**Get the Chrome extension (recommended):**
-
-- **Chrome Web Store:** [Summarize Side Panel](https://chromewebstore.google.com/detail/summarize/cejgnmmhbbpdmjnfppjdfkocebngehfg)
+**Chrome Web Store:** [Summarize Side Panel](https://chromewebstore.google.com/detail/summarize/cejgnmmhbbpdmjnfppjdfkocebngehfg)
 
 YouTube slide screenshots (from the browser):
 
