@@ -973,6 +973,7 @@ function resetSummaryView({ preserveChat = false }: { preserveChat?: boolean } =
   slidesTranscriptAvailable = false
   slidesOcrAvailable = false
   slidesTextToggleVisible = false
+  slidesTextMode = 'transcript'
   slideDescriptions = new Map()
   refreshSummarizeControl()
   if (!preserveChat) {
