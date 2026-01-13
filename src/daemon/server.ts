@@ -582,6 +582,18 @@ export async function runDaemonServer({
               truncated: hasText ? truncated : null,
             }
           : null
+        const logSlidesSettings =
+          includeContentLog && slidesSettings
+            ? {
+                enabled: slidesSettings.enabled,
+                ocr: slidesSettings.ocr,
+                outputDir: slidesSettings.outputDir,
+                sceneThreshold: slidesSettings.sceneThreshold,
+                autoTuneThreshold: slidesSettings.autoTuneThreshold,
+                maxSlides: slidesSettings.maxSlides,
+                minDurationSeconds: slidesSettings.minDurationSeconds,
+              }
+            : null
         requestLogger?.info({
           event: 'summarize.request',
           url: pageUrl,
@@ -593,20 +605,36 @@ export async function runDaemonServer({
           model: modelOverride,
           includeContent: includeContentLog,
           slides: Boolean(slidesSettings),
+          ...(logSlidesSettings ? { slidesSettings: logSlidesSettings } : {}),
+          ...(includeContentLog ? { diagnostics } : {}),
         })
 
         json(res, 200, { ok: true, id: session.id }, cors)
 
         void (async () => {
+          const slideLogState: {
+            startedAt: number | null
+            requested: boolean
+            cacheHit: boolean
+            lastStatus: string | null
+            statusCount: number
+            elapsedMs: number | null
+            slidesCount: number | null
+            ocrAvailable: boolean | null
+            warnings: string[]
+          } = {
+            startedAt: null,
+            requested: Boolean(slidesSettings),
+            cacheHit: false,
+            lastStatus: null,
+            statusCount: 0,
+            elapsedMs: null,
+            slidesCount: null,
+            ocrAvailable: null,
+            warnings: [],
+          }
           try {
             let emittedOutput = false
-            const slideLogState: {
-              startedAt: number | null
-              requested: boolean
-            } = {
-              startedAt: null,
-              requested: Boolean(slidesSettings),
-            }
             const sink = {
               writeChunk: (chunk: string) => {
                 emittedOutput = true
@@ -668,6 +696,14 @@ export async function runDaemonServer({
                 console.log(
                   `[summarize-daemon] slides: start url=${pageUrl} (session=${session.id})`
                 )
+                if (includeContentLog) {
+                  requestLogger?.info({
+                    event: 'slides.start',
+                    url: pageUrl,
+                    sessionId: session.id,
+                    ...(logSlidesSettings ? { settings: logSlidesSettings } : {}),
+                  })
+                }
               }
               return resolved === 'url'
                 ? await streamSummaryForUrl({
@@ -693,11 +729,29 @@ export async function runDaemonServer({
                         : {}),
                       onSlidesExtracted: (slides) => {
                         session.slides = slides
+                        slideLogState.slidesCount = slides.slides.length
+                        slideLogState.ocrAvailable = slides.ocrAvailable
+                        slideLogState.warnings = slides.warnings
+                        if (slideLogState.startedAt) {
+                          slideLogState.elapsedMs = Date.now() - slideLogState.startedAt
+                        }
                         if (slideLogState.startedAt) {
                           const elapsedMs = Date.now() - slideLogState.startedAt
                           console.log(
                             `[summarize-daemon] slides: done count=${slides.slides.length} ocr=${slides.ocrAvailable} elapsedMs=${elapsedMs} warnings=${slides.warnings.join('; ')}`
                           )
+                        }
+                        if (includeContentLog) {
+                          requestLogger?.info({
+                            event: 'slides.done',
+                            url: pageUrl,
+                            sessionId: session.id,
+                            slidesCount: slides.slides.length,
+                            ocrAvailable: slides.ocrAvailable,
+                            elapsedMs: slideLogState.elapsedMs,
+                            cacheHit: slideLogState.cacheHit,
+                            warnings: slides.warnings,
+                          })
                         }
                         emitSlides(
                           session,
@@ -709,6 +763,26 @@ export async function runDaemonServer({
                           onSessionEvent
                         )
                       },
+                      onSlidesProgress: includeContentLog
+                        ? (text) => {
+                            const clean = typeof text === 'string' ? text.trim() : ''
+                            if (!clean) return
+                            slideLogState.lastStatus = clean
+                            slideLogState.statusCount += 1
+                            if (clean.toLowerCase().includes('cached')) {
+                              slideLogState.cacheHit = true
+                            }
+                            const progressMatch = clean.match(/(\d+)%/)
+                            const progress = progressMatch ? Number(progressMatch[1]) : null
+                            requestLogger?.info({
+                              event: 'slides.status',
+                              url: pageUrl,
+                              sessionId: session.id,
+                              status: clean,
+                              ...(progress !== null ? { progress } : {}),
+                            })
+                          }
+                        : undefined,
                       onSlideChunk: (chunk) => {
                         const { slide, meta } = chunk
                         if (
@@ -815,6 +889,20 @@ export async function runDaemonServer({
               elapsedMs: Date.now() - logStartedAt,
               summaryFromCache: logSummaryFromCache,
               inputSummary: logInputSummary,
+              ...(includeContentLog && slideLogState.requested
+                ? {
+                    slides: {
+                      requested: true,
+                      cacheHit: slideLogState.cacheHit,
+                      lastStatus: slideLogState.lastStatus,
+                      statusCount: slideLogState.statusCount,
+                      elapsedMs: slideLogState.elapsedMs,
+                      slidesCount: slideLogState.slidesCount,
+                      ocrAvailable: slideLogState.ocrAvailable,
+                      warnings: slideLogState.warnings,
+                    },
+                  }
+                : {}),
               ...(includeContentLog && !logSummaryFromCache
                 ? {
                     input: logInput,
@@ -835,6 +923,20 @@ export async function runDaemonServer({
               elapsedMs: Date.now() - logStartedAt,
               summaryFromCache: logSummaryFromCache,
               inputSummary: logInputSummary,
+              ...(includeContentLog && slideLogState.requested
+                ? {
+                    slides: {
+                      requested: true,
+                      cacheHit: slideLogState.cacheHit,
+                      lastStatus: slideLogState.lastStatus,
+                      statusCount: slideLogState.statusCount,
+                      elapsedMs: slideLogState.elapsedMs,
+                      slidesCount: slideLogState.slidesCount,
+                      ocrAvailable: slideLogState.ocrAvailable,
+                      warnings: slideLogState.warnings,
+                    },
+                  }
+                : {}),
               error: {
                 message,
                 stack: error instanceof Error ? error.stack : null,

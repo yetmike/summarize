@@ -929,7 +929,7 @@ function renderMarkdown(markdown: string) {
     a.setAttribute('target', '_blank')
     a.setAttribute('rel', 'noopener noreferrer')
   }
-  renderInlineSlides(renderEl)
+  renderInlineSlides(renderEl, { fallback: true })
 }
 
 let slidesBusy = false
@@ -978,10 +978,58 @@ function openSlideModal(slide: { index: number; imageUrl: string; ocrText?: stri
   slideModal.root.dataset.open = 'true'
 }
 
-function renderInlineSlides(container: HTMLElement) {
+const MAX_SLIDE_STRIP = 12
+
+function clearSlideStrip(container: HTMLElement) {
+  const existing = container.querySelector('.slideStrip')
+  if (existing) existing.remove()
+}
+
+function renderSlideStrip(container: HTMLElement) {
   if (!panelState.slides) return
+  clearSlideStrip(container)
+  const slides = panelState.slides.slides.slice(0, MAX_SLIDE_STRIP)
+  if (slides.length === 0) return
+
+  const root = document.createElement('div')
+  root.className = 'slideStrip'
+
+  const title = document.createElement('div')
+  title.className = 'slideStrip__title'
+  const total = panelState.slides.slides.length
+  title.textContent =
+    total > slides.length ? `Slides (${total}) · showing ${slides.length}` : 'Slides'
+  root.appendChild(title)
+
+  const grid = document.createElement('div')
+  grid.className = 'slideStrip__grid'
+  for (const slide of slides) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'slideStrip__item'
+    const img = document.createElement('img')
+    img.alt = `Slide ${slide.index}`
+    void setSlideImage(img, slide.imageUrl)
+    const meta = document.createElement('div')
+    meta.className = 'slideStrip__meta'
+    meta.textContent = `Slide ${slide.index}`
+    button.appendChild(img)
+    button.appendChild(meta)
+    button.addEventListener('click', () => openSlideModal(slide))
+    grid.appendChild(button)
+  }
+  root.appendChild(grid)
+  container.appendChild(root)
+}
+
+function renderInlineSlides(container: HTMLElement, opts?: { fallback?: boolean }) {
+  if (!panelState.slides) {
+    if (opts?.fallback) clearSlideStrip(container)
+    return
+  }
   const slidesByIndex = new Map(panelState.slides.slides.map((slide) => [slide.index, slide]))
   const placeholders = Array.from(container.querySelectorAll('span.slideInline'))
+  let replacedCount = 0
   for (const placeholder of placeholders) {
     const indexAttr = placeholder.getAttribute('data-slide-index')
     const index = indexAttr ? Number(indexAttr) : Number.NaN
@@ -1003,6 +1051,14 @@ function renderInlineSlides(container: HTMLElement) {
     button.addEventListener('click', () => openSlideModal(slide))
     wrapper.appendChild(button)
     placeholder.replaceWith(wrapper)
+    replacedCount += 1
+  }
+  if (opts?.fallback) {
+    if (replacedCount === 0) {
+      renderSlideStrip(container)
+    } else {
+      clearSlideStrip(container)
+    }
   }
 }
 
@@ -1819,7 +1875,7 @@ const streamController = createStreamController({
     panelState.slides = data
     setSlidesBusy(false)
     if (panelState.summaryMarkdown) {
-      renderInlineSlides(renderEl)
+      renderInlineSlides(renderEl, { fallback: true })
     }
     renderInlineSlides(chatMessagesEl)
   },

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1 - 2026-01-13
+
+### Fixes
+
+- Chrome Side Panel: show the header progress bar during extracting/summarizing status updates even when cached.
+- Chrome Side Panel: remove duplicate busy spinners from the Summarize button and Slides toggle (single progress indicator only).
+- Chrome Side Panel: add a fallback slide strip when slides are available but no `[slide:N]` tags were used.
+- Daemon: emit slides start/progress/done metadata in extended logging for easier debugging.
+
 ## 0.10.0 - 2026-01-12
 
 ### Features

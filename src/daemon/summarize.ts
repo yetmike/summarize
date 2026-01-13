@@ -320,6 +320,7 @@ export async function streamSummaryForUrl({
   hooks?: {
     onExtracted?: ((extracted: ExtractedLinkContent) => void) | null
     onSlidesExtracted?: ((slides: SlideExtractionResult) => void) | null
+    onSlidesProgress?: ((text: string) => void) | null
     onSlideChunk?: (chunk: {
       slide: SlideImage
       meta: {
@@ -369,7 +370,9 @@ export async function streamSummaryForUrl({
       onSlideChunk: hooks?.onSlideChunk ?? undefined,
       onSlidesProgress: (text: string) => {
         const trimmed = typeof text === 'string' ? text.trim() : ''
-        if (trimmed) writeStatus?.(trimmed)
+        if (!trimmed) return
+        hooks?.onSlidesProgress?.(trimmed)
+        writeStatus?.(trimmed)
       },
       onLinkPreviewProgress: (event) => {
         const msg = formatProgress(event)

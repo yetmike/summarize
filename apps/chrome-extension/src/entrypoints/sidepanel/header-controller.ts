@@ -38,6 +38,29 @@ export function createHeaderController({
   const shouldAllowProgress = (force = false) =>
     force || progressOverride || getState().summaryFromCache !== true
 
+  const isActiveStatus = (text: string) => {
+    const trimmed = text.trim().toLowerCase()
+    if (!trimmed) return false
+    if (trimmed.startsWith('error:')) return false
+    if (trimmed === 'copied') return false
+    return (
+      trimmed.startsWith('extracting') ||
+      trimmed.startsWith('connecting') ||
+      trimmed.startsWith('summarizing') ||
+      trimmed.startsWith('sending') ||
+      trimmed.startsWith('slides:') ||
+      trimmed.startsWith('downloading') ||
+      trimmed.startsWith('transcribing') ||
+      trimmed.startsWith('processing') ||
+      trimmed.startsWith('refreshing') ||
+      trimmed.startsWith('starting') ||
+      trimmed.startsWith('scanning') ||
+      trimmed.includes('whisper') ||
+      trimmed.includes('transcript') ||
+      trimmed.includes('caption')
+    )
+  }
+
   const updateHeader = () => {
     const { phase } = getState()
     const isStreaming = phase === 'connecting' || phase === 'streaming'
@@ -100,11 +123,12 @@ export function createHeaderController({
     const isError =
       trimmed.length > 0 &&
       (trimmed.toLowerCase().startsWith('error:') || trimmed.toLowerCase().includes(' error'))
+    const forceProgress = isActiveStatus(trimmed)
     const split = splitStatusPercent(text)
     const { phase } = getState()
-    if (split.percent && shouldAllowProgress()) {
+    if (split.percent && shouldAllowProgress(forceProgress)) {
       armProgress()
-    } else if (trimmed && shouldAllowProgress() && !isError) {
+    } else if (trimmed && shouldAllowProgress(forceProgress) && !isError) {
       armProgress()
     } else if (!trimmed && !(phase === 'connecting' || phase === 'streaming')) {
       stopProgress()
