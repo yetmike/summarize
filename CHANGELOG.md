@@ -10,6 +10,7 @@
 - Chrome Side Panel: move slide strip to the top with an expand/collapse full-width list and timestamped slide seek.
 - Chrome Side Panel: add blur behind slide modal text for readability.
 - Chrome Side Panel chat: keep auto-scroll pinned while streaming when you’re already at the bottom.
+- Chrome Side Panel: fix a startup crash when slide controls initialize before state (ReferenceError).
 - Daemon: emit slides start/progress/done metadata in extended logging for easier debugging.
 
 ### Docs

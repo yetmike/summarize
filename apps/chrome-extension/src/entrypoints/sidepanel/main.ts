@@ -241,6 +241,17 @@ let summarizeVideoDurationSeconds: number | null = null
 
 type SlideTextMode = 'transcript' | 'ocr'
 type TranscriptSegment = { startSeconds: number; text: string }
+let slidesBusy = false
+let slidesExpanded = false
+let slidesTextMode: SlideTextMode = 'transcript'
+let slidesTextToggleVisible = false
+let slidesTranscriptSegments: TranscriptSegment[] = []
+let slidesTranscriptAvailable = false
+let slidesOcrAvailable = false
+let slideDescriptions = new Map<number, string>()
+let slidesContextRequestId = 0
+let slidesContextPending = false
+let slidesContextUrl: string | null = null
 
 const AGENT_NAV_TTL_MS = 20_000
 type AgentNavigation = { url: string; tabId: number | null; at: number }
@@ -1007,7 +1018,6 @@ function renderMarkdown(markdown: string) {
   renderInlineSlides(renderEl, { fallback: true })
 }
 
-let slidesBusy = false
 function setSlidesBusy(next: boolean) {
   if (slidesBusy === next) return
   slidesBusy = next
@@ -1018,17 +1028,6 @@ function setSlidesBusy(next: boolean) {
   headerController.setProgressOverride(next)
   refreshSummarizeControl()
 }
-
-let slidesExpanded = false
-let slidesTextMode: SlideTextMode = 'transcript'
-let slidesTextToggleVisible = false
-let slidesTranscriptSegments: TranscriptSegment[] = []
-let slidesTranscriptAvailable = false
-let slidesOcrAvailable = false
-let slideDescriptions = new Map<number, string>()
-let slidesContextRequestId = 0
-let slidesContextPending = false
-let slidesContextUrl: string | null = null
 
 function formatSlideTimestamp(seconds: number | null | undefined): string | null {
   if (seconds == null || !Number.isFinite(seconds)) return null
