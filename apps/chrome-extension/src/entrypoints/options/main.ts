@@ -33,8 +33,6 @@ const languageCustomEl = byId<HTMLInputElement>('languageCustom')
 const promptOverrideEl = byId<HTMLTextAreaElement>('promptOverride')
 const autoToggleRoot = byId<HTMLDivElement>('autoToggle')
 const maxCharsEl = byId<HTMLInputElement>('maxChars')
-const advancedFieldsEl = byId<HTMLDivElement>('advancedFields')
-const advancedToggleEl = byId<HTMLButtonElement>('advancedToggle')
 const hoverPromptEl = byId<HTMLTextAreaElement>('hoverPrompt')
 const hoverPromptResetBtn = byId<HTMLButtonElement>('hoverPromptReset')
 const chatToggleRoot = byId<HTMLDivElement>('chatToggle')
@@ -125,7 +123,6 @@ let automationEnabledValue = defaultSettings.automationEnabled
 let hoverSummariesValue = defaultSettings.hoverSummaries
 let summaryTimestampsValue = defaultSettings.summaryTimestamps
 let extendedLoggingValue = defaultSettings.extendedLogging
-let advancedOpen = false
 
 let skillsCache: Skill[] = []
 let skillsFiltered: Skill[] = []
@@ -983,11 +980,6 @@ const extendedLoggingToggle = mountCheckbox(extendedLoggingToggleRoot, {
   onCheckedChange: handleExtendedLoggingToggleChange,
 })
 
-const updateAdvancedVisibility = () => {
-  advancedFieldsEl.hidden = !advancedOpen
-  advancedToggleEl.setAttribute('aria-expanded', advancedOpen ? 'true' : 'false')
-}
-
 async function load() {
   const s = await loadSettings()
   tokenEl.value = s.token
@@ -1030,7 +1022,6 @@ async function load() {
   currentMode = s.colorMode
   pickers.update({ scheme: currentScheme, mode: currentMode, ...pickerHandlers })
   applyTheme({ scheme: s.colorScheme, mode: s.colorMode })
-  updateAdvancedVisibility()
   await loadSkills()
   await updateAutomationPermissionsUi()
 }
@@ -1084,11 +1075,6 @@ modelCustomEl.addEventListener('pointerdown', refreshModelsIfStale)
 languagePresetEl.addEventListener('change', () => {
   languageCustomEl.hidden = languagePresetEl.value !== 'custom'
   if (!languageCustomEl.hidden) languageCustomEl.focus()
-})
-
-advancedToggleEl.addEventListener('click', () => {
-  advancedOpen = !advancedOpen
-  updateAdvancedVisibility()
 })
 
 hoverPromptResetBtn.addEventListener('click', () => {

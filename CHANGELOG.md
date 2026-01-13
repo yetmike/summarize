@@ -17,6 +17,8 @@
 ### Fixes
 
 - Chrome Side Panel: scope streams/state per window so other windows don’t wipe active summaries.
+- Chrome Side Panel chat: handle non-SSE agent responses to avoid “stream ended” errors.
+- Chrome Options: move Advanced overrides into a dedicated tab after Skills.
 - Chrome Side Panel chat: clear streaming placeholders on errors/aborts.
 - Chrome Side Panel: add inline error toast above chat composer; errors stay visible when scrolled.
 - Chrome Side Panel: clear/hide the inline error toast when no message is present to avoid empty red boxes.

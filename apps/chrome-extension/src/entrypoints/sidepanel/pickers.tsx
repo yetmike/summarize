@@ -512,7 +512,7 @@ function SummarizeControl(props: SummarizeControlProps) {
   const api = useZagSelect({
     id: 'source',
     items: sourceItems,
-    value: props.slidesEnabled ? ['video-slides'] : [props.mode],
+    value: props.slidesEnabled ? 'video-slides' : props.mode,
     onValueChange: (next) => {
       const raw = Array.isArray(next) ? next[0] : next
       if (raw === 'video-slides') {

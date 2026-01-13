@@ -1362,7 +1362,7 @@ export default defineBackground(() => {
               }),
               signal: agentController.signal,
             })
-            if (!res.ok || !res.body) {
+            if (!res.ok) {
               const rawText = await res.text().catch(() => '')
               const isMissingAgent =
                 res.status === 404 || rawText.trim().toLowerCase() === 'not found'
@@ -1370,6 +1370,28 @@ export default defineBackground(() => {
                 ? 'Daemon does not support /v1/agent. Restart the daemon after updating (summarize daemon restart).'
                 : rawText.trim() || `${res.status} ${res.statusText}`
               throw new Error(error)
+            }
+            const contentType = res.headers.get('content-type') ?? ''
+            if (contentType.includes('application/json')) {
+              const json = (await res.json().catch(() => null)) as {
+                ok?: boolean
+                assistant?: AssistantMessage
+                error?: string
+              } | null
+              if (!json?.ok || !json.assistant) {
+                throw new Error(json?.error || 'Agent failed')
+              }
+              void send(session, {
+                type: 'agent:response',
+                requestId: agentPayload.requestId,
+                ok: true,
+                assistant: json.assistant,
+              })
+              sendStatus(session, '')
+              return
+            }
+            if (!res.body) {
+              throw new Error('Missing agent response body')
             }
 
             let sawAssistant = false

@@ -710,29 +710,33 @@ export async function runDaemonServer({
                         ) {
                           return
                         }
-                        if (!liveSlides) {
-                          liveSlides = {
-                            sourceUrl: meta.sourceUrl,
-                            sourceKind: meta.sourceKind,
-                            sourceId: meta.sourceId,
-                            slidesDir: meta.slidesDir,
-                            sceneThreshold: 0,
-                            autoTuneThreshold: 0,
-                            autoTune: false,
-                            maxSlides: 0,
-                            minSlideDuration: 0,
-                            ocrRequested: meta.ocrAvailable,
-                            ocrAvailable: meta.ocrAvailable,
-                            slides: [],
-                            warnings: [],
-                          }
+                        const nextSlides = liveSlides ?? {
+                          sourceUrl: meta.sourceUrl,
+                          sourceKind: meta.sourceKind,
+                          sourceId: meta.sourceId,
+                          slidesDir: meta.slidesDir,
+                          sceneThreshold: 0,
+                          autoTuneThreshold: false,
+                          autoTune: {
+                            enabled: false,
+                            chosenThreshold: 0,
+                            confidence: 0,
+                            strategy: 'none',
+                          },
+                          maxSlides: 0,
+                          minSlideDuration: 0,
+                          ocrRequested: meta.ocrAvailable,
+                          ocrAvailable: meta.ocrAvailable,
+                          slides: [],
+                          warnings: [],
                         }
-                        liveSlides.slides.push(slide)
-                        session.slides = liveSlides
+                        liveSlides = nextSlides
+                        nextSlides.slides.push(slide)
+                        session.slides = nextSlides
                         emitSlides(
                           session,
                           buildSlidesPayload({
-                            slides: liveSlides,
+                            slides: nextSlides,
                             port,
                             sessionId: session.id,
                           }),

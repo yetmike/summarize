@@ -18,7 +18,7 @@ import {
   resolveSummaryLength,
 } from '../run/run-settings.js'
 import { createSummaryEngine } from '../run/summary-engine.js'
-import type { SlideSettings } from '../slides/index.js'
+import type { SlideImage, SlideSettings, SlideSourceKind } from '../slides/index.js'
 
 type TextSink = {
   writeChunk: (text: string) => void
@@ -58,6 +58,17 @@ export type DaemonUrlFlowContextArgs = {
           slides: Awaited<ReturnType<typeof import('../slides/index.js').extractSlidesForSource>>
         ) => void)
       | null
+    onSlidesProgress?: ((text: string) => void) | null
+    onSlideChunk?: (chunk: {
+      slide: SlideImage
+      meta: {
+        slidesDir: string
+        sourceUrl: string
+        sourceId: string
+        sourceKind: SlideSourceKind
+        ocrAvailable: boolean
+      }
+    }) => void
     onLinkPreviewProgress?: ((event: LinkPreviewProgressEvent) => void) | null
     onSummaryCached?: ((cached: boolean) => void) | null
   } | null
@@ -378,7 +389,7 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
       onExtracted: hooks?.onExtracted ?? null,
       onSlidesExtracted: hooks?.onSlidesExtracted ?? null,
       onSlidesProgress: hooks?.onSlidesProgress ?? null,
-      onSlideChunk: hooks?.onSlideChunk ?? null,
+      onSlideChunk: hooks?.onSlideChunk ?? undefined,
       onLinkPreviewProgress: hooks?.onLinkPreviewProgress ?? null,
       onSummaryCached: hooks?.onSummaryCached ?? null,
       setTranscriptionCost: metrics.setTranscriptionCost,

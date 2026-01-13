@@ -126,7 +126,7 @@ See `docs/media.md` for detection and transcript rules.
   - Auto summarize: on/off.
   - Hover summaries: on/off (side panel drawer, default off).
   - Typography: font family (dropdown + custom), font size (slider).
-- Advanced overrides (collapsed by default; click the section title to expand).
+- Advanced overrides (Options → Advanced tab).
   - Leave blank to use daemon config/defaults; set a value to override.
   - Chat (advanced): enable/disable the side panel chat input (default on; summary is the first message).
   - Summary timestamps (advanced): include `[mm:ss]` links in summaries for media when available (default on).

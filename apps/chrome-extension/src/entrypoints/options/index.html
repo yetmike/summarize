@@ -64,6 +64,17 @@
           >
             Skills
           </button>
+          <button
+            id="tab-advanced"
+            class="tabButton"
+            type="button"
+            role="tab"
+            data-tab="advanced"
+            aria-controls="panel-advanced"
+            aria-selected="false"
+          >
+            Advanced
+          </button>
         </div>
 
         <div id="panel-general" class="tabPanel" role="tabpanel" data-tab-panel="general" aria-labelledby="tab-general">
@@ -197,15 +208,45 @@
               <input id="maxChars" type="number" min="20000" step="10000" />
             </label>
           </section>
+        </div>
 
+        <div
+          id="panel-skills"
+          class="tabPanel"
+          role="tabpanel"
+          data-tab-panel="skills"
+          aria-labelledby="tab-skills"
+          hidden
+        >
           <section class="section">
-            <h2 class="sectionTitle">
-              <button id="advancedToggle" type="button" class="sectionToggle" aria-expanded="false">
-                Advanced Overrides
-              </button>
-            </h2>
+            <h2>Automation Skills</h2>
+            <div class="hint">Manage reusable JavaScript libraries for domain-specific automation.</div>
+            <div class="skillsActions">
+              <button id="skillsExport" type="button" class="miniButton">Export skills</button>
+              <button id="skillsImport" type="button" class="miniButton">Import skills</button>
+            </div>
+            <label>
+              <span>Search</span>
+              <input id="skillsSearch" type="text" placeholder="Search by name, domain, or description" />
+            </label>
+            <div id="skillsImportConflicts" class="skillsConflicts" hidden></div>
+            <div id="skillsList" class="skillsList"></div>
+            <div id="skillsEmpty" class="skillsEmpty" hidden>No skills created yet.</div>
+          </section>
+        </div>
+
+        <div
+          id="panel-advanced"
+          class="tabPanel"
+          role="tabpanel"
+          data-tab-panel="advanced"
+          aria-labelledby="tab-advanced"
+          hidden
+        >
+          <section class="section">
+            <h2>Advanced Overrides</h2>
             <div class="hint">Values set here override daemon config. Leave blank to use config.</div>
-            <div id="advancedFields" class="advancedFields" hidden>
+            <div id="advancedFields" class="advancedFields">
               <div class="advancedGrid">
                 <div class="combo span-2">
                   <div id="extendedLoggingToggle"></div>
@@ -317,31 +358,6 @@
                 </label>
               </div>
             </div>
-          </section>
-        </div>
-
-        <div
-          id="panel-skills"
-          class="tabPanel"
-          role="tabpanel"
-          data-tab-panel="skills"
-          aria-labelledby="tab-skills"
-          hidden
-        >
-          <section class="section">
-            <h2>Automation Skills</h2>
-            <div class="hint">Manage reusable JavaScript libraries for domain-specific automation.</div>
-            <div class="skillsActions">
-              <button id="skillsExport" type="button" class="miniButton">Export skills</button>
-              <button id="skillsImport" type="button" class="miniButton">Import skills</button>
-            </div>
-            <label>
-              <span>Search</span>
-              <input id="skillsSearch" type="text" placeholder="Search by name, domain, or description" />
-            </label>
-            <div id="skillsImportConflicts" class="skillsConflicts" hidden></div>
-            <div id="skillsList" class="skillsList"></div>
-            <div id="skillsEmpty" class="skillsEmpty" hidden>No skills created yet.</div>
           </section>
         </div>
 

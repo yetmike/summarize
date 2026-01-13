@@ -1,5 +1,7 @@
 import { promises as fs } from 'node:fs'
 
+import { isTwitterStatusUrl, shouldPreferUrlMode } from '@steipete/summarize-core/content/url'
+
 import { buildExtractCacheKey, buildSlidesCacheKey } from '../../../cache.js'
 import { loadRemoteAsset } from '../../../content/asset.js'
 import {
@@ -220,7 +222,7 @@ export async function runUrlFlow({
         }
         return extracted
       } catch (err) {
-        if (!shouldPreferUrlMode(targetUrl)) throw err
+        if (!shouldPreferUrlMode(targetUrl) || isTwitterStatusUrl(targetUrl)) throw err
         // Fallback: skip HTML fetch and proceed with URL-only extraction (YouTube/direct media).
         writeVerbose(
           io.stderr,
@@ -231,13 +233,12 @@ export async function runUrlFlow({
         return {
           content: '',
           title: null,
+          description: null,
           url: targetUrl,
           siteName: null,
-          language: null,
           wordCount: 0,
           totalCharacters: 0,
           truncated: false,
-          media: null,
           mediaDurationSeconds: null,
           video: null,
           isVideoOnly: true,
@@ -245,16 +246,18 @@ export async function runUrlFlow({
           transcriptCharacters: null,
           transcriptWordCount: null,
           transcriptLines: null,
+          transcriptMetadata: null,
           transcriptSegments: null,
           transcriptTimedText: null,
           transcriptionProvider: null,
           diagnostics: {
-            strategy: 'url-only-fallback',
+            strategy: 'html',
             firecrawl: {
               attempted: false,
               used: false,
               cacheMode: cacheState.mode,
-              cacheStatus: 'bypass',
+              cacheStatus: 'bypassed',
+              notes: 'skipped (url-only fallback)',
             },
             markdown: {
               requested: false,
