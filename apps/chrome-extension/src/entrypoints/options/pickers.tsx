@@ -57,6 +57,7 @@ function SelectField({
     ...(positionerProps.style ?? {}),
     position: 'fixed',
     zIndex: 9999,
+    pointerEvents: api.open ? 'auto' : 'none',
   }
   const content = (
     <div className="pickerPositioner" {...positionerProps} style={positionerStyle}>
