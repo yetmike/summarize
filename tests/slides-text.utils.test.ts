@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildSlideTextFallback,
   buildTimestampUrl,
   coerceSummaryWithSlides,
   extractSlideMarkers,
@@ -8,6 +9,7 @@ import {
   formatOsc8Link,
   formatTimestamp,
   getTranscriptTextForSlide,
+  interleaveSlidesIntoTranscript,
   parseSlideSummariesFromMarkdown,
   parseTranscriptTimedText,
   resolveSlideTextBudget,
@@ -64,6 +66,26 @@ describe('slides text helpers', () => {
     expect(markers).toEqual([1, 2])
   })
 
+  it('builds slide text fallback from transcript', () => {
+    const fallback = buildSlideTextFallback({
+      slides: [
+        { index: 1, timestamp: 5 },
+        { index: 2, timestamp: 12 },
+      ],
+      transcriptTimedText: '[00:05] Hello there\n[00:10] General Kenobi',
+      lengthArg: { kind: 'preset', preset: 'short' },
+    })
+    expect(fallback.get(1)).toContain('Hello')
+    expect(fallback.size).toBeGreaterThan(0)
+    expect(
+      buildSlideTextFallback({
+        slides: [{ index: 1, timestamp: 5 }],
+        transcriptTimedText: '',
+        lengthArg: { kind: 'preset', preset: 'short' },
+      }).size
+    ).toBe(0)
+  })
+
   it('coerces summaries without markers into slide blocks', () => {
     const markdown = [
       '### Intro',
@@ -89,6 +111,37 @@ describe('slides text helpers', () => {
     expect(coerced).toContain('[slide:2]')
     expect(coerced).toContain('First slide text.')
     expect(coerced).toContain('Second slide text.')
+  })
+
+  it('coerces summaries with markers and missing slides', () => {
+    const slides = [
+      { index: 1, timestamp: 10 },
+      { index: 2, timestamp: 20 },
+    ]
+    const coerced = coerceSummaryWithSlides({
+      markdown: 'Intro\n\n[slide:1]\nText',
+      slides,
+      transcriptTimedText: null,
+      lengthArg: { kind: 'preset', preset: 'short' },
+    })
+    expect(coerced).toContain('[slide:1]')
+    expect(coerced).toContain('Intro')
+
+    const withSummaries = coerceSummaryWithSlides({
+      markdown: '### Slides\n[slide:1] First',
+      slides,
+      transcriptTimedText: '[00:20] Second fallback',
+      lengthArg: { kind: 'preset', preset: 'short' },
+    })
+    expect(withSummaries).toContain('[slide:2]')
+
+    const onlyIntro = coerceSummaryWithSlides({
+      markdown: 'Just an intro.',
+      slides,
+      transcriptTimedText: null,
+      lengthArg: { kind: 'preset', preset: 'short' },
+    })
+    expect(onlyIntro).toContain('[slide:1]')
   })
 
   it('parses transcript timed text and sorts by timestamp', () => {
@@ -212,5 +265,19 @@ describe('slides text helpers', () => {
     )
     expect(buildTimestampUrl('not a url', 5)).toBeNull()
     expect(buildTimestampUrl('https://example.com/video', 5)).toBeNull()
+  })
+
+  it('interleaves slide markers into transcript', () => {
+    const transcript = ['[00:05] Alpha', '[00:10] Beta'].join('\n')
+    const interleaved = interleaveSlidesIntoTranscript({
+      transcriptTimedText: transcript,
+      slides: [
+        { index: 1, timestamp: 3 },
+        { index: 2, timestamp: 9 },
+      ],
+    })
+    expect(interleaved).toContain('[slide:1]')
+    expect(interleaved).toContain('[slide:2]')
+    expect(interleaveSlidesIntoTranscript({ transcriptTimedText: '', slides: [] })).toBe('')
   })
 })
