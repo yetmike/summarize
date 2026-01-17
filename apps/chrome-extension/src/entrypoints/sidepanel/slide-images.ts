@@ -29,7 +29,7 @@ export function createSlideImageLoader(
   const slideImagePending = new Map<string, Promise<string | null>>()
   const slideImageRetryTimers = new WeakMap<HTMLImageElement, number>()
   const slideImageObserverEntries = new WeakMap<HTMLImageElement, { imageUrl: string }>()
-  const maxCacheEntries = Math.max(10, options.maxCacheEntries ?? 160)
+  const maxCacheEntries = Math.max(1, options.maxCacheEntries ?? 160)
   let cacheUseCounter = 0
 
   const recordCacheUse = (imageUrl: string, objectUrl: string) => {
