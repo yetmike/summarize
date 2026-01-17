@@ -24,6 +24,18 @@ function createTtyStream() {
   return { stream, getText: () => text }
 }
 
+function createNonTtyStream() {
+  let text = ''
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      text += chunk.toString()
+      callback()
+    },
+  })
+  ;(stream as unknown as { isTTY?: boolean }).isTTY = false
+  return { stream, getText: () => text }
+}
+
 async function createTempSlide() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'summarize-slides-'))
   const imagePath = path.join(dir, 'slide_0001.png')
@@ -67,6 +79,20 @@ describe('renderSlidesInline', () => {
     expect(output.getText()).toContain('\u001b_G')
   })
 
+  it('skips rendering when stdout is not a TTY', async () => {
+    const imagePath = await createTempSlide()
+    const output = createNonTtyStream()
+    const result = await renderSlidesInline({
+      slides: [{ index: 1, timestamp: 12.3, imagePath }],
+      mode: 'kitty',
+      env: { TERM: 'xterm-kitty' },
+      stdout: output.stream,
+    })
+    expect(result.protocol).toBe('none')
+    expect(result.rendered).toBe(0)
+    expect(output.getText()).toBe('')
+  })
+
   it('renders kitty images when Konsole is detected', async () => {
     const imagePath = await createTempSlide()
     const output = createTtyStream()
@@ -106,5 +132,22 @@ describe('renderSlidesInline', () => {
     expect(result.protocol).toBe('kitty')
     expect(result.rendered).toBe(0)
     expect(output.getText()).toContain('(missing slide image)')
+  })
+
+  it('prints an empty image notice when the slide is blank', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'summarize-slides-'))
+    const imagePath = path.join(dir, 'slide_0001.png')
+    await fs.writeFile(imagePath, Buffer.alloc(0))
+    const output = createTtyStream()
+    const result = await renderSlidesInline({
+      slides: [{ index: 1, timestamp: 0, imagePath }],
+      mode: 'auto',
+      env: { TERM_PROGRAM: 'iTerm.app' },
+      stdout: output.stream,
+    })
+    expect(result.protocol).toBe('iterm')
+    expect(result.rendered).toBe(0)
+    expect(output.getText()).toContain('(empty slide image)')
+    await fs.rm(dir, { recursive: true, force: true })
   })
 })
