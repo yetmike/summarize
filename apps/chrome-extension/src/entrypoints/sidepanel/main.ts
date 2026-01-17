@@ -310,6 +310,12 @@ function stopSlidesStream() {
   setSlidesBusy(false)
 }
 
+function setSlidesTranscriptTimedText(value: string | null) {
+  slidesTranscriptTimedText = value ?? null
+  slidesTranscriptSegments = parseTranscriptTimedText(slidesTranscriptTimedText)
+  slidesTranscriptAvailable = slidesTranscriptSegments.length > 0
+}
+
 async function fetchSlideTools(): Promise<{
   ok: boolean
   missing: string[]
@@ -968,9 +974,7 @@ function resetSummaryView({ preserveChat = false }: { preserveChat?: boolean } =
   slidesExpanded = true
   slidesContextPending = false
   slidesContextUrl = null
-  slidesTranscriptSegments = []
-  slidesTranscriptTimedText = null
-  slidesTranscriptAvailable = false
+  setSlidesTranscriptTimedText(null)
   slidesOcrAvailable = false
   slidesTextToggleVisible = false
   slidesTextMode = 'transcript'
@@ -1015,9 +1019,7 @@ function applyPanelCache(payload: PanelCachePayload, opts?: { preserveChat?: boo
       model: panelState.lastMeta.model,
     })
   )
-  slidesTranscriptTimedText = payload.transcriptTimedText ?? null
-  slidesTranscriptSegments = parseTranscriptTimedText(slidesTranscriptTimedText)
-  slidesTranscriptAvailable = slidesTranscriptSegments.length > 0
+  setSlidesTranscriptTimedText(payload.transcriptTimedText ?? null)
   if (payload.slides) {
     panelState.slides = {
       ...payload.slides,
@@ -1509,9 +1511,7 @@ function applySlidesPayload(data: SseSlidesData) {
   if (!isSameSource) {
     slidesContextPending = false
     slidesContextUrl = null
-    slidesTranscriptTimedText = null
-    slidesTranscriptSegments = []
-    slidesTranscriptAvailable = false
+    setSlidesTranscriptTimedText(null)
     void requestSlidesContext()
   }
   updateSlidesTextState()
@@ -3281,18 +3281,14 @@ function handleBgMessage(msg: BgToPanel) {
       if (msg.requestId !== expectedId) return
       slidesContextPending = false
       if (!msg.ok) {
-        slidesTranscriptTimedText = null
-        slidesTranscriptSegments = []
-        slidesTranscriptAvailable = false
+        setSlidesTranscriptTimedText(null)
         updateSlidesTextState()
         if (panelState.summaryMarkdown) {
           renderInlineSlides(renderMarkdownHostEl, { fallback: true })
         }
         return
       }
-      slidesTranscriptTimedText = msg.transcriptTimedText ?? null
-      slidesTranscriptSegments = parseTranscriptTimedText(slidesTranscriptTimedText)
-      slidesTranscriptAvailable = slidesTranscriptSegments.length > 0
+      setSlidesTranscriptTimedText(msg.transcriptTimedText ?? null)
       updateSlidesTextState()
       if (panelState.summaryMarkdown) {
         renderInlineSlides(renderMarkdownHostEl, { fallback: true })
