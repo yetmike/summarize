@@ -19,10 +19,10 @@ describe('buildLinkSummaryPrompt (slides)', () => {
       shares: [],
     })
 
-    expect(prompt).toContain('Start with a single short overview paragraph')
-    expect(prompt).toContain('Include a section titled "### Slides"')
-    expect(prompt).toContain('Each paragraph MUST start with a [slide:N] tag')
-    expect(prompt).toContain('Use each slide index at most once')
+    expect(prompt).toContain('Start with a short intro paragraph')
+    expect(prompt).toContain('Insert each slide marker on its own line')
+    expect(prompt).toContain('Use every slide index from 1 to 8 exactly once')
+    expect(prompt).toContain('Do not create a dedicated Slides section')
     expect(prompt).not.toContain('Include at least 3 headings')
   })
 })

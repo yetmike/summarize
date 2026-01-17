@@ -106,6 +106,44 @@ function parseTimestampSeconds(value: string): number | null {
   return null
 }
 
+export function interleaveSlidesIntoTranscript({
+  transcriptTimedText,
+  slides,
+}: {
+  transcriptTimedText: string
+  slides: SlideTimelineEntry[]
+}): string {
+  if (!transcriptTimedText.trim() || slides.length === 0) return transcriptTimedText
+  const ordered = slides
+    .filter((slide) => Number.isFinite(slide.timestamp))
+    .map((slide) => ({ index: slide.index, timestamp: slide.timestamp }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+  if (ordered.length === 0) return transcriptTimedText
+
+  let nextIndex = 0
+  const out: string[] = []
+  const lines = transcriptTimedText.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const match = trimmed.match(/^\[(\d{1,2}:\d{2}(?::\d{2})?)\]/)
+    const seconds = match ? parseTimestampSeconds(match[1] ?? '') : null
+    if (seconds != null) {
+      while (nextIndex < ordered.length && (ordered[nextIndex]?.timestamp ?? 0) <= seconds) {
+        const slide = ordered[nextIndex]
+        if (slide) out.push(`[slide:${slide.index}]`)
+        nextIndex += 1
+      }
+    }
+    out.push(line)
+  }
+  while (nextIndex < ordered.length) {
+    const slide = ordered[nextIndex]
+    if (slide) out.push(`[slide:${slide.index}]`)
+    nextIndex += 1
+  }
+  return out.join('\n')
+}
+
 export function parseTranscriptTimedText(input: string | null | undefined): TranscriptSegment[] {
   if (!input) return []
   const segments: TranscriptSegment[] = []

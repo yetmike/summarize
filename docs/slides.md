@@ -49,10 +49,11 @@ read_when:
   (enough slides + total OCR chars); otherwise hide it.
 
 ## CLI
-- `summarize <url> --slides` streams a short overview paragraph, then renders each slide image followed by a timestamp link and a slide summary.
-  - Slide summaries are LLM-generated from transcript windows between slides; missing entries fall back to transcript slices.
+- `summarize <url> --slides` streams a short intro paragraph and then a continuous narrative with slide images inserted inline where `[slide:N]` markers appear.
+  - The model is responsible for inserting every slide marker in order; text length is still governed by `--length`.
   - If inline images are unsupported, the CLI prints text-only output and notes how to export slides to disk.
   - Timestamp links use OSC-8 when supported (YouTube/Vimeo/Loom/Dropbox).
+- `summarize <url> --slides --extract` prints the full timed transcript and inserts slide images inline at matching timestamps.
 - `summarize slides <url>` extracts slides without summarizing (use `--render auto|kitty|iterm` for inline thumbnails).
 - Defaults to writing images under `./slides/<sourceId>/` (override via `--slides-dir` / `--output`).
 

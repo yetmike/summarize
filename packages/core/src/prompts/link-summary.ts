@@ -124,7 +124,9 @@ export function buildLinkSummaryPrompt({
       effectiveSummaryLength.maxCharacters >= HEADING_LENGTH_CHAR_THRESHOLD)
   const headingInstruction =
     slides && slides.count > 0
-      ? 'Do not add headings before the Slides section; use only the "### Slides" heading.'
+      ? needsHeadings
+        ? 'Use Markdown headings with the "### " prefix to break sections when helpful. Do not create a dedicated Slides section or list.'
+        : 'Do not create a dedicated Slides section or list.'
       : needsHeadings
         ? 'Use Markdown headings with the "### " prefix to break sections. Include at least 3 headings and start with a heading. Do not use bold for headings.'
         : ''
@@ -164,31 +166,15 @@ export function buildLinkSummaryPrompt({
     hasTranscriptTimestamps && !(slides && slides.count > 0)
       ? 'Add a "Key moments" section with 3-6 bullets (2-4 if the summary is short). Start each bullet with a [mm:ss] (or [hh:mm:ss]) timestamp from the transcript. Keep the rest of the summary readable and follow the normal formatting guidance; do not prepend timestamps outside the Key moments section. Do not invent timestamps or use ranges.'
       : ''
-  const slideParagraphRange = (() => {
-    switch (preset) {
-      case 'short':
-        return '4-6'
-      case 'medium':
-        return '6-10'
-      case 'long':
-        return '8-14'
-      case 'xl':
-        return '12-20'
-      case 'xxl':
-        return '18-30'
-      default:
-        return '6-10'
-    }
-  })()
   const slideInstruction =
     slides && slides.count > 0
       ? [
-          'Start with a single short overview paragraph (2-4 sentences). Do not use headings or bullets before the Slides section.',
-          'Slides are provided as transcript excerpts that correspond to time spans between adjacent slides.',
-          'Include a section titled "### Slides" that summarizes the video along the timeline (what they are talking about in each segment).',
-          'In that section, write short paragraphs (not bullets). Each paragraph MUST start with a [slide:N] tag (N = slide index) and then summarize the spoken content for that segment. Small timing drift is OK; do not overfit.',
-          `Cover the whole timeline by picking representative slides; include about ${slideParagraphRange} slide paragraphs (adjust down if needed to stay within the length target).`,
-          'Use each slide index at most once.',
+          'Start with a short intro paragraph (1-3 sentences) before the first slide tag.',
+          'Write a continuous narrative that covers the whole video; do not switch to a bullet list.',
+          'Slides are provided as transcript excerpts tied to time spans between adjacent slides.',
+          `Insert each slide marker on its own line where that slide should appear: [slide:N] (N is the slide index).`,
+          `Use every slide index from 1 to ${slides.count} exactly once, in chronological order.`,
+          'Do not add a separate Slides section or list.',
         ].join(' ')
       : ''
   const listGuidanceLine =

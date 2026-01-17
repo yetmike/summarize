@@ -641,6 +641,7 @@ export async function runUrlFlow({
         effectiveMarkdownMode: markdown.effectiveMarkdownMode,
         transcriptionCostLabel,
         slides: slidesExtracted ?? slidesPlanned,
+        slidesOutput,
       })
       return
     }

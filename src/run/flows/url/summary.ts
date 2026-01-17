@@ -28,6 +28,7 @@ import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js
 import type { ModelAttempt } from '../../types.js'
 import type { UrlExtractionUi } from './extract.js'
 import type { SlidesTerminalOutput } from './slides-output.js'
+import { interleaveSlidesIntoTranscript } from './slides-text.js'
 import type { UrlFlowContext } from './types.js'
 
 type SlidesResult = Awaited<
@@ -99,23 +100,6 @@ function truncateTranscript(value: string, limit: number): string {
   return result.length > 0 ? `${result}…` : ''
 }
 
-function pickRepresentativeSlides(
-  slides: Array<{ index: number; timestamp: number }>,
-  target: number
-): Array<{ index: number; timestamp: number }> {
-  if (slides.length <= target) return slides
-  if (target <= 1) return slides.slice(0, 1)
-  const selected = new Map<number, { index: number; timestamp: number }>()
-  for (let i = 0; i < target; i += 1) {
-    const pos = (i * (slides.length - 1)) / (target - 1)
-    const idx = Math.round(pos)
-    const slide = slides[idx]
-    if (!slide) continue
-    selected.set(slide.index, slide)
-  }
-  return Array.from(selected.values()).sort((a, b) => a.timestamp - b.timestamp)
-}
-
 function buildSlidesPromptText({
   slides,
   transcriptTimedText,
@@ -127,7 +111,6 @@ function buildSlidesPromptText({
 }): string | null {
   if (!slides || slides.slides.length === 0) return null
   const segments = parseTranscriptTimedText(transcriptTimedText)
-  if (segments.length === 0) return null
 
   const slidesWithTimestamps = slides.slides
     .filter((slide) => Number.isFinite(slide.timestamp))
@@ -135,35 +118,20 @@ function buildSlidesPromptText({
     .sort((a, b) => a.timestamp - b.timestamp)
   if (slidesWithTimestamps.length === 0) return null
 
-  const targetSlides = (() => {
-    switch (preset) {
-      case 'short':
-        return 6
-      case 'medium':
-        return 10
-      case 'long':
-        return 14
-      case 'xl':
-        return 20
-      case 'xxl':
-        return 30
-      default:
-        return 10
-    }
-  })()
-
-  const selectedSlides = pickRepresentativeSlides(slidesWithTimestamps, targetSlides)
   const totalBudget = MAX_SLIDE_TRANSCRIPT_CHARS_BY_PRESET[preset]
-  const perSlideBudget = Math.max(240, Math.floor(totalBudget / Math.max(1, selectedSlides.length)))
+  const perSlideBudget = Math.max(
+    120,
+    Math.floor(totalBudget / Math.max(1, slidesWithTimestamps.length))
+  )
 
   let remaining = totalBudget
   const blocks: string[] = []
 
-  for (let i = 0; i < selectedSlides.length; i += 1) {
-    const slide = selectedSlides[i]
+  for (let i = 0; i < slidesWithTimestamps.length; i += 1) {
+    const slide = slidesWithTimestamps[i]
     if (!slide) continue
-    const prev = selectedSlides[i - 1]
-    const next = selectedSlides[i + 1]
+    const prev = slidesWithTimestamps[i - 1]
+    const next = slidesWithTimestamps[i + 1]
     const startBase = prev ? Math.floor((prev.timestamp + slide.timestamp) / 2) : slide.timestamp
     const endBase = next ? Math.ceil((slide.timestamp + next.timestamp) / 2) : slide.timestamp
     const start = Math.max(
@@ -182,15 +150,14 @@ function buildSlidesPromptText({
       excerptParts.push(segment.text)
     }
     const excerptRaw = excerptParts.join(' ').trim().replace(/\s+/g, ' ')
-    if (!excerptRaw) continue
-
-    const excerpt = truncateTranscript(excerptRaw, Math.min(perSlideBudget, remaining))
-    if (!excerpt) continue
-    const block = `Slide ${slide.index} [${formatTimestamp(start)}–${formatTimestamp(end)}]:\n${excerpt}`
-    if (block.length > remaining && blocks.length > 0) break
+    const excerptBudget = remaining > 0 ? Math.min(perSlideBudget, remaining) : 0
+    const excerpt =
+      excerptRaw && excerptBudget > 0 ? truncateTranscript(excerptRaw, excerptBudget) : ''
+    const block = excerpt
+      ? `Slide ${slide.index} [${formatTimestamp(start)}–${formatTimestamp(end)}]:\n${excerpt}`
+      : `Slide ${slide.index} [${formatTimestamp(start)}–${formatTimestamp(end)}]:`
     blocks.push(block)
-    remaining -= block.length
-    if (remaining <= 0) break
+    remaining = Math.max(0, remaining - block.length)
   }
 
   return blocks.length > 0 ? blocks.join('\n\n') : null
@@ -298,6 +265,7 @@ export async function outputExtractedUrl({
   effectiveMarkdownMode,
   transcriptionCostLabel,
   slides,
+  slidesOutput,
 }: {
   ctx: UrlFlowContext
   url: string
@@ -309,6 +277,7 @@ export async function outputExtractedUrl({
   slides?: Awaited<
     ReturnType<typeof import('../../../slides/index.js').extractSlidesForSource>
   > | null
+  slidesOutput?: SlidesTerminalOutput | null
 }) {
   const { io, flags, model, hooks } = ctx
 
@@ -388,6 +357,50 @@ export async function outputExtractedUrl({
     extracted.content.toLowerCase().startsWith('transcript:')
       ? `Transcript:\n${extracted.transcriptTimedText}`
       : extracted.content
+
+  const slideTags =
+    slides?.slides && slides.slides.length > 0
+      ? slides.slides.map((slide) => `[slide:${slide.index}]`).join('\n')
+      : ''
+
+  if (slidesOutput && slides?.slides && slides.slides.length > 0) {
+    const transcriptText = extracted.transcriptTimedText
+      ? `Transcript:\n${extracted.transcriptTimedText}`
+      : null
+    const interleaved = transcriptText
+      ? interleaveSlidesIntoTranscript({
+          transcriptTimedText: transcriptText,
+          slides: slides.slides.map((slide) => ({
+            index: slide.index,
+            timestamp: slide.timestamp,
+          })),
+        })
+      : `${extractCandidate.trimEnd()}\n\n${slideTags}`
+    await slidesOutput.renderFromText(interleaved)
+    hooks.restoreProgressAfterStdout?.()
+    const slideFooter = slides ? [`slides ${slides.slides.length}`] : []
+    hooks.writeViaFooter([...extractionUi.footerParts, ...slideFooter])
+    const report = flags.shouldComputeReport ? await hooks.buildReport() : null
+    if (flags.metricsEnabled && report) {
+      const costUsd = await hooks.estimateCostUsd()
+      writeFinishLine({
+        stderr: io.stderr,
+        elapsedMs: Date.now() - flags.runStartedAtMs,
+        label: finishLabel,
+        model: finishModel,
+        report,
+        costUsd,
+        detailed: flags.metricsDetailed,
+        extraParts: buildFinishExtras({
+          extracted,
+          metricsDetailed: flags.metricsDetailed,
+          transcriptionCostLabel,
+        }),
+        color: flags.verboseColor,
+      })
+    }
+    return
+  }
 
   const renderedExtract =
     flags.format === 'markdown' && !flags.plain && isRichTty(io.stdout)
@@ -808,10 +821,8 @@ export async function summarizeExtractedUrl({
 
   if (slidesOutput) {
     if (!summaryAlreadyPrinted) {
-      slidesOutput.streamHandler.onChunk({ streamed: summary, prevStreamed: '', appended: summary })
-      slidesOutput.streamHandler.onDone?.(summary)
+      await slidesOutput.renderFromText(summary)
     }
-    await slidesOutput.renderFromSummary(summary)
   } else if (!summaryAlreadyPrinted) {
     hooks.clearProgressForStdout()
     const rendered =

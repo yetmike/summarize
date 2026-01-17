@@ -18,6 +18,7 @@ Deprecated alias: `--extract-only`.
 - `--length` is intended for summarization guidance; extraction prints full content.
 - `--timestamps` keeps the plain transcript text but also exposes `transcriptSegments` and `transcriptTimedText` (JSON) and prints a timed transcript block when available.
 - `--slides` runs slide detection (YouTube/direct video URLs). Slide metadata is included in JSON output and written to `slides.json` in the slide directory.
+  - When combined with `--extract` for videos that have timed transcripts, the CLI interleaves slide images inline at matching timestamps.
   - Scene detection auto-tunes using sampled frame hashes.
 - For non-YouTube URLs with `--format md`, the CLI uses Readability article HTML as the default Markdown input (`--markdown-mode readability`).
   - Use `--markdown-mode auto` to prefer LLM/markitdown conversion without Readability preprocessing.

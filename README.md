@@ -250,7 +250,7 @@ Use `summarize --help` or `summarize help` for the full help text.
   - Install `uvx`: `brew install uv` (or https://astral.sh/uv/)
 - `--extract`: print extracted content and exit (URLs only)
   - Deprecated alias: `--extract-only`
-- `--slides`: extract slides for YouTube/direct video URLs and render a slide timeline with summaries (auto-renders inline in supported terminals)
+- `--slides`: extract slides for YouTube/direct video URLs and render them inline in the summary narrative (auto-renders inline in supported terminals)
 - `--slides-ocr`: run OCR on extracted slides (requires `tesseract`)
 - `--slides-dir <dir>`: base output dir for slide images (default `./slides`)
 - `--slides-scene-threshold <value>`: scene detection threshold (0.1-1.0)
@@ -333,10 +333,12 @@ summarize "https://www.youtube.com/watch?v=..." --slides --slides-ocr
 Outputs are written under `./slides/<sourceId>/` (or `--slides-dir`). OCR results are included in JSON output
 (`--json`) and stored in `slides.json` inside the slide directory. When scene detection is too sparse, the
 extractor also samples at a fixed interval to improve coverage.
-When using `--slides`, supported terminals (kitty/iTerm/Konsole) render inline thumbnails automatically along
-with a short overview paragraph and per-slide summaries. Timestamp links are clickable when the terminal supports
+When using `--slides`, supported terminals (kitty/iTerm/Konsole) render inline thumbnails automatically inside the
+summary narrative (the model inserts `[slide:N]` markers). Timestamp links are clickable when the terminal supports
 OSC-8 (YouTube/Vimeo/Loom/Dropbox). If inline images are unsupported, Summarize prints a note with the on-disk
 slide directory.
+
+Use `--slides --extract` to print the full timed transcript and insert slide images inline at matching timestamps.
 
 Format the extracted transcript as Markdown (headings + paragraphs) via an LLM:
 

@@ -72,8 +72,12 @@ export type SummaryEngineDeps = {
 }
 
 export type SummaryStreamHandler = {
-  onChunk: (args: { streamed: string; prevStreamed: string; appended: string }) => void
-  onDone?: ((finalText: string) => void) | null
+  onChunk: (args: {
+    streamed: string
+    prevStreamed: string
+    appended: string
+  }) => void | Promise<void>
+  onDone?: ((finalText: string) => void | Promise<void>) | null
 }
 
 export function createSummaryEngine(deps: SummaryEngineDeps) {
@@ -445,7 +449,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
           const merged = mergeStreamingChunk(streamed, delta)
           streamed = merged.next
           if (streamHandler) {
-            streamHandler.onChunk({
+            await streamHandler.onChunk({
               streamed: merged.next,
               prevStreamed,
               appended: merged.appended,
@@ -477,7 +481,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
         streamed = trimmed
       } finally {
         if (streamHandler) {
-          streamHandler.onDone?.(streamedRaw || streamed)
+          await streamHandler.onDone?.(streamedRaw || streamed)
           summaryAlreadyPrinted = true
         } else if (shouldStreamRenderedMarkdownToStdout) {
           const out = streamer?.finish()
@@ -520,8 +524,8 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
 
     if (!streamResult && streamHandler) {
       const cleaned = summary.trim()
-      streamHandler.onChunk({ streamed: cleaned, prevStreamed: '', appended: cleaned })
-      streamHandler.onDone?.(cleaned)
+      await streamHandler.onChunk({ streamed: cleaned, prevStreamed: '', appended: cleaned })
+      await streamHandler.onDone?.(cleaned)
       summaryAlreadyPrinted = true
     }
 

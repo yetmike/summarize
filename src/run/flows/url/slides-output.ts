@@ -10,14 +10,8 @@ import type { SummaryStreamHandler } from '../../summary-engine.js'
 import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js'
 import {
   buildTimestampUrl,
-  findSlidesSectionStart,
   formatOsc8Link,
   formatTimestamp,
-  getTranscriptTextForSlide,
-  parseSlideSummariesFromMarkdown,
-  parseTranscriptTimedText,
-  resolveSlideTextBudget,
-  resolveSlideWindowSeconds,
   type SlideTimelineEntry,
 } from './slides-text.js'
 
@@ -125,7 +119,7 @@ export type SlidesTerminalOutput = {
     }
   }) => void
   streamHandler: SummaryStreamHandler
-  renderFromSummary: (summary: string) => Promise<void>
+  renderFromText: (summary: string) => Promise<void>
 }
 
 export function createSlidesTerminalOutput({
@@ -168,8 +162,6 @@ export function createSlidesTerminalOutput({
 
   const state = createSlideOutputState(slides)
   state.setMeta({ sourceUrl: extracted.url })
-  const transcriptSegments = parseTranscriptTimedText(extracted.transcriptTimedText)
-
   const noteInlineUnsupported = (nextSlides: SlideExtractionResult) => {
     if (!inlineNoticeEnabled || inlineNoticeShown) return
     if (!nextSlides.slidesDir) return
@@ -204,6 +196,44 @@ export function createSlidesTerminalOutput({
     state.markDone()
   }
 
+  let renderedCount = 0
+  const renderSlide = async (index: number) => {
+    if (index <= 0) return
+    const total = state.getOrder().length || (slides?.slides.length ?? 0)
+    const slide = state.getSlide(index)
+    let imagePath = slide?.imagePath ?? null
+    if (inlineEnabled) {
+      const ready = await state.waitForSlide(index)
+      imagePath = ready?.imagePath ?? imagePath
+    }
+    const timestamp = slide?.timestamp
+    const timestampLabel =
+      typeof timestamp === 'number' && Number.isFinite(timestamp)
+        ? formatTimestamp(timestamp)
+        : null
+    const timestampUrl =
+      typeof timestamp === 'number' && Number.isFinite(timestamp)
+        ? buildTimestampUrl(state.getSourceUrl(), timestamp)
+        : null
+    const timeLink = timestampLabel
+      ? formatOsc8Link(timestampLabel, timestampUrl, isRichTty(io.stdout) && !flags.plain)
+      : null
+    const label = timeLink ? `Slide ${index} · ${timeLink}` : `Slide ${index}`
+
+    clearProgressForStdout()
+    io.stdout.write('\n')
+    if (inlineEnabled && imagePath && inlineRenderer) {
+      await inlineRenderer.renderSlide({ index, timestamp: timestamp ?? 0, imagePath }, null)
+    }
+    io.stdout.write(`${label}\n\n`)
+    restoreProgressAfterStdout?.()
+
+    if (onProgressText && total > 0) {
+      renderedCount = Math.min(total, renderedCount + 1)
+      onProgressText(`Slides ${renderedCount}/${total}`)
+    }
+  }
+
   const streamHandler: SummaryStreamHandler = createSlidesSummaryStreamHandler({
     stdout: io.stdout,
     env: io.env,
@@ -212,81 +242,13 @@ export function createSlidesTerminalOutput({
     outputMode: outputMode ?? 'line',
     clearProgressForStdout,
     restoreProgressAfterStdout,
+    renderSlide,
+    getSlideIndexOrder: () => state.getOrder(),
   })
 
-  const renderFromSummary = async (summary: string) => {
-    const slideSummaryByIndex = parseSlideSummariesFromMarkdown(summary)
-    const slidesInOrder = state.getSlides()
-    if (slidesInOrder.length === 0) return
-
-    const budget = resolveSlideTextBudget({
-      lengthArg: flags.lengthArg,
-      slideCount: slidesInOrder.length,
-    })
-    const windowSeconds = resolveSlideWindowSeconds({ lengthArg: flags.lengthArg })
-
-    const slideTexts = new Map<number, string>()
-    for (let i = 0; i < slidesInOrder.length; i += 1) {
-      const slide = slidesInOrder[i]
-      const nextSlide = slidesInOrder[i + 1] ?? null
-      const modelText = slideSummaryByIndex.get(slide.index) ?? ''
-      if (modelText) {
-        slideTexts.set(slide.index, modelText)
-        continue
-      }
-      const fallback = getTranscriptTextForSlide({
-        slide,
-        nextSlide,
-        segments: transcriptSegments,
-        budget,
-        windowSeconds,
-      })
-      slideTexts.set(slide.index, fallback)
-    }
-
-    const total = slidesInOrder.length
-    let rendered = 0
-
-    clearProgressForStdout()
-    io.stdout.write('\n')
-    restoreProgressAfterStdout?.()
-
-    for (const slide of slidesInOrder) {
-      const text = slideTexts.get(slide.index) ?? ''
-      const timestampLabel = formatTimestamp(slide.timestamp)
-      const timestampUrl = buildTimestampUrl(state.getSourceUrl(), slide.timestamp)
-      const timeLink = formatOsc8Link(
-        timestampLabel,
-        timestampUrl,
-        isRichTty(io.stdout) && !flags.plain
-      )
-      const label = `Slide ${slide.index} · ${timeLink}`
-
-      let imagePath = slide.imagePath ?? null
-      if (inlineEnabled) {
-        const ready = await state.waitForSlide(slide.index)
-        imagePath = ready?.imagePath ?? null
-      }
-
-      clearProgressForStdout()
-      if (inlineEnabled && imagePath && inlineRenderer) {
-        await inlineRenderer.renderSlide(
-          { index: slide.index, timestamp: slide.timestamp, imagePath },
-          null
-        )
-      }
-      io.stdout.write(`${label}\n`)
-      if (text) {
-        io.stdout.write(`${text}\n`)
-      }
-      io.stdout.write('\n')
-      restoreProgressAfterStdout?.()
-
-      rendered += 1
-      if (onProgressText) {
-        onProgressText(`Slides ${rendered}/${total}`)
-      }
-    }
+  const renderFromText = async (text: string) => {
+    await streamHandler.onChunk({ streamed: text, prevStreamed: '', appended: text })
+    await streamHandler.onDone?.(text)
   }
 
   return {
@@ -294,7 +256,7 @@ export function createSlidesTerminalOutput({
     onSlidesDone,
     onSlideChunk,
     streamHandler,
-    renderFromSummary,
+    renderFromText,
   }
 }
 
@@ -306,6 +268,8 @@ export function createSlidesSummaryStreamHandler({
   outputMode,
   clearProgressForStdout,
   restoreProgressAfterStdout,
+  renderSlide,
+  getSlideIndexOrder,
 }: {
   stdout: NodeJS.WritableStream
   env: Record<string, string | undefined>
@@ -314,6 +278,8 @@ export function createSlidesSummaryStreamHandler({
   outputMode: StreamOutputMode
   clearProgressForStdout: () => void
   restoreProgressAfterStdout?: (() => void) | null
+  renderSlide: (index: number) => Promise<void>
+  getSlideIndexOrder: () => number[]
 }): SummaryStreamHandler {
   const shouldRenderMarkdown = !plain && isRichTty(stdout)
   const outputGate = !shouldRenderMarkdown
@@ -339,16 +305,13 @@ export function createSlidesSummaryStreamHandler({
     : null
 
   let wroteLeadingBlankLine = false
+  let buffered = ''
+  const renderedSlides = new Set<number>()
+  let visible = ''
 
-  const getVisible = (value: string) => {
-    const start = findSlidesSectionStart(value)
-    if (start == null) return value
-    return value.slice(0, start)
-  }
-
-  const handleMarkdownChunk = (visible: string, prevVisible: string) => {
+  const handleMarkdownChunk = (nextVisible: string, prevVisible: string) => {
     if (!streamer) return
-    const appended = visible.slice(prevVisible.length)
+    const appended = nextVisible.slice(prevVisible.length)
     if (!appended) return
     const out = streamer.push(appended)
     if (!out) return
@@ -362,18 +325,70 @@ export function createSlidesSummaryStreamHandler({
     restoreProgressAfterStdout?.()
   }
 
-  return {
-    onChunk: ({ streamed, prevStreamed }) => {
-      const visible = getVisible(streamed)
-      const prevVisible = getVisible(prevStreamed)
-      if (outputGate) {
-        outputGate.handleChunk(visible, prevVisible)
+  const appendVisible = (segment: string) => {
+    if (!segment) return
+    const prevVisible = visible
+    visible += segment
+    if (outputGate) {
+      outputGate.handleChunk(visible, prevVisible)
+      return
+    }
+    handleMarkdownChunk(visible, prevVisible)
+  }
+
+  const renderSlideBlock = async (index: number) => {
+    if (renderedSlides.has(index)) return
+    renderedSlides.add(index)
+    await renderSlide(index)
+  }
+
+  const flushBuffered = async ({ final }: { final: boolean }) => {
+    while (buffered.length > 0) {
+      const match = buffered.match(/\[slide:(\d+)\]/i)
+      if (!match) {
+        if (final) {
+          appendVisible(buffered)
+          buffered = ''
+          return
+        }
+        const lower = buffered.toLowerCase()
+        const start = lower.lastIndexOf('[slide:')
+        if (start === -1) {
+          appendVisible(buffered)
+          buffered = ''
+          return
+        }
+        const head = buffered.slice(0, start)
+        appendVisible(head)
+        buffered = buffered.slice(start)
         return
       }
-      handleMarkdownChunk(visible, prevVisible)
+      const index = Number.parseInt(match[1] ?? '', 10)
+      const matchIndex = match.index ?? 0
+      const before = buffered.slice(0, matchIndex)
+      const after = buffered.slice(matchIndex + match[0].length)
+      appendVisible(before)
+      buffered = after
+      if (Number.isFinite(index) && index > 0) {
+        await renderSlideBlock(index)
+      }
+    }
+  }
+
+  return {
+    onChunk: async ({ appended }) => {
+      if (!appended) return
+      buffered += appended
+      await flushBuffered({ final: false })
     },
-    onDone: (finalText) => {
-      const visible = getVisible(finalText)
+    onDone: async () => {
+      await flushBuffered({ final: true })
+      const ordered = getSlideIndexOrder()
+      for (const index of ordered) {
+        if (!renderedSlides.has(index)) {
+          await renderSlideBlock(index)
+        }
+      }
       if (outputGate) {
         outputGate.finalize(visible)
         return

@@ -18,8 +18,9 @@ const makeStdout = (isTTY: boolean) => {
 }
 
 describe('slides summary stream handler', () => {
-  it('renders markdown in rich TTY and hides slides section', () => {
+  it('renders markdown in rich TTY and inserts slides inline', async () => {
     const { stream, chunks } = makeStdout(true)
+    const renderedSlides: number[] = []
     const handler = createSlidesSummaryStreamHandler({
       stdout: stream,
       env: { TERM: 'xterm' },
@@ -27,19 +28,28 @@ describe('slides summary stream handler', () => {
       plain: false,
       outputMode: 'line',
       clearProgressForStdout: () => {},
+      renderSlide: async (index) => {
+        renderedSlides.push(index)
+        stream.write(`[SLIDE ${index}]\n`)
+      },
+      getSlideIndexOrder: () => [1],
     })
 
-    const payload = 'Hello world\n\n### Slides\n[slide:1] hidden'
-    handler.onChunk({ streamed: payload, prevStreamed: '' })
-    handler.onDone(payload)
+    const payload = 'Hello world\n\n[slide:1]\nAfter slide'
+    await handler.onChunk({ streamed: payload, prevStreamed: '', appended: payload })
+    await handler.onDone?.(payload)
 
     const output = chunks.join('')
     expect(output).toContain('Hello')
-    expect(output).not.toContain('Slides')
+    expect(output).toContain('[SLIDE 1]')
+    expect(output).toContain('After slide')
+    expect(output).not.toContain('[slide:1]')
+    expect(renderedSlides).toEqual([1])
   })
 
-  it('streams visible text through the output gate', () => {
+  it('streams visible text through the output gate', async () => {
     const { stream, chunks } = makeStdout(false)
+    const renderedSlides: number[] = []
     const handler = createSlidesSummaryStreamHandler({
       stdout: stream,
       env: {},
@@ -47,18 +57,26 @@ describe('slides summary stream handler', () => {
       plain: true,
       outputMode: 'line',
       clearProgressForStdout: () => {},
+      renderSlide: async (index) => {
+        renderedSlides.push(index)
+        stream.write(`[SLIDE ${index}]\n`)
+      },
+      getSlideIndexOrder: () => [1],
     })
 
-    const payload = 'Intro line\n\n### Slides\n[slide:1] hidden'
-    handler.onChunk({ streamed: payload, prevStreamed: '' })
-    handler.onDone(payload)
+    const payload = 'Intro line\n\n[slide:1]\nAfter'
+    await handler.onChunk({ streamed: payload, prevStreamed: '', appended: payload })
+    await handler.onDone?.(payload)
 
     const output = chunks.join('')
     expect(output).toContain('Intro line')
-    expect(output).not.toContain('Slides')
+    expect(output).toContain('[SLIDE 1]')
+    expect(output).toContain('After')
+    expect(output).not.toContain('[slide:1]')
+    expect(renderedSlides).toEqual([1])
   })
 
-  it('handles delta output mode and appends a newline on finalize', () => {
+  it('handles delta output mode and appends a newline on finalize', async () => {
     const { stream, chunks } = makeStdout(false)
     const handler = createSlidesSummaryStreamHandler({
       stdout: stream,
@@ -67,11 +85,13 @@ describe('slides summary stream handler', () => {
       plain: true,
       outputMode: 'delta',
       clearProgressForStdout: () => {},
+      renderSlide: async () => {},
+      getSlideIndexOrder: () => [],
     })
 
-    handler.onChunk({ streamed: 'First', prevStreamed: '' })
-    handler.onChunk({ streamed: 'Reset', prevStreamed: 'First' })
-    handler.onDone('Reset')
+    await handler.onChunk({ streamed: 'First', prevStreamed: '', appended: 'First' })
+    await handler.onChunk({ streamed: 'Reset', prevStreamed: 'First', appended: 'Reset' })
+    await handler.onDone?.('Reset')
 
     const output = chunks.join('')
     expect(output).toContain('First')
@@ -116,7 +136,7 @@ describe('slides summary stream handler', () => {
     expect(output).toBeNull()
   })
 
-  it('renders slide summaries with transcript fallback', async () => {
+  it('renders slides inline from markers', async () => {
     const { stream, chunks } = makeStdout(false)
     const extracted: ExtractedLinkContent = {
       url: 'https://example.com',
@@ -134,7 +154,7 @@ describe('slides summary stream handler', () => {
       transcriptionProvider: null,
       transcriptMetadata: null,
       transcriptSegments: null,
-      transcriptTimedText: '[00:15] Fallback text',
+      transcriptTimedText: null,
       mediaDurationSeconds: null,
       video: null,
       isVideoOnly: false,
@@ -171,11 +191,12 @@ describe('slides summary stream handler', () => {
     })
 
     expect(output).not.toBeNull()
-    await output?.renderFromSummary(['### Slides', '[slide:1] Model text', '[slide:2]'].join('\n'))
+    await output?.renderFromText(['Intro', '[slide:1]', 'After'].join('\n'))
 
     const outputText = chunks.join('')
     expect(outputText).toContain('Slide 1')
-    expect(outputText).toContain('Model text')
-    expect(outputText).toContain('Fallback text')
+    expect(outputText).toContain('Intro')
+    expect(outputText).toContain('After')
+    expect(outputText).not.toContain('[slide:1]')
   })
 })
