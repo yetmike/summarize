@@ -57,24 +57,25 @@ export function buildFileSummaryPrompt({
   ].filter(Boolean)
 
   const baseInstructions = [
-    'Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).',
+    'Hard rules: never mention sponsor/ads; never output quotation marks of any kind (straight or curly), even for titles.',
+    'Never include quotation marks in the output. Apostrophes in contractions are OK. If a title or excerpt would normally use quotes, remove them and optionally italicize the text instead.',
     'You summarize files for curious users.',
     'Summarize the attached file.',
     'Be factual and do not invent details.',
     shouldIgnoreSponsors
-      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention them or that you skipped/ignored them.'
+      ? 'Omit sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention or acknowledge them, and do not say you skipped or ignored anything. Avoid sponsor/ad/promo language, brand names like Squarespace, or CTA phrases like discount code.'
       : '',
     directive.guidance,
     directive.formatting,
     'Format the answer in Markdown.',
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.',
-    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics. Use underscores for italics and place an underscore immediately before the opening quote and immediately after the closing quote. If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized; avoid quotation marks for single words or emphasis. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
+    'If a standout line is present, include 1-2 short exact excerpts (max 25 words each) formatted as Markdown italics using single asterisks only. Do not use quotation marks of any kind (straight or curly). Remove any quotation marks from excerpts. If you cannot format an italic excerpt, omit it. Never include ad/sponsor/boilerplate excerpts and do not mention them.',
     'Do not use emojis.',
     presetLengthLine,
     maxCharactersLine,
     contentLengthLine,
     formatOutputLanguageInstruction(outputLanguage ?? { kind: 'auto' }),
-    'Final check: remove any sponsor/ad references. Ensure any quoted text is italicized; if not, remove the quotes.',
+    'Final check: remove any sponsor/ad references or mentions of skipping/ignoring content. Remove any quotation marks. Ensure standout excerpts are italicized; otherwise omit them.',
     'Return only the summary.',
   ]
     .filter((line) => typeof line === 'string' && line.trim().length > 0)
@@ -145,23 +146,24 @@ export function buildFileTextSummaryPrompt({
   ].filter(Boolean)
 
   const baseInstructions = [
-    'Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).',
+    'Hard rules: never mention sponsor/ads; never output quotation marks of any kind (straight or curly), even for titles.',
+    'Never include quotation marks in the output. Apostrophes in contractions are OK. If a title or excerpt would normally use quotes, remove them and optionally italicize the text instead.',
     'You summarize files for curious users.',
     'Summarize the file content below.',
     'Be factual and do not invent details.',
     shouldIgnoreSponsors
-      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention them or that you skipped/ignored them.'
+      ? 'Omit sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention or acknowledge them, and do not say you skipped or ignored anything. Avoid sponsor/ad/promo language, brand names like Squarespace, or CTA phrases like discount code.'
       : '',
     directive.guidance,
     directive.formatting,
     'Format the answer in Markdown.',
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.',
-    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics. Use underscores for italics and place an underscore immediately before the opening quote and immediately after the closing quote. If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized; avoid quotation marks for single words or emphasis. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
+    'If a standout line is present, include 1-2 short exact excerpts (max 25 words each) formatted as Markdown italics using single asterisks only. Do not use quotation marks of any kind (straight or curly). Remove any quotation marks from excerpts. If you cannot format an italic excerpt, omit it. Never include ad/sponsor/boilerplate excerpts and do not mention them.',
     'Do not use emojis.',
     presetLengthLine,
     maxCharactersLine,
     formatOutputLanguageInstruction(outputLanguage ?? { kind: 'auto' }),
-    'Final check: remove any sponsor/ad references. Ensure any quoted text is italicized; if not, remove the quotes.',
+    'Final check: remove any sponsor/ad references or mentions of skipping/ignoring content. Remove any quotation marks. Ensure standout excerpts are italicized; otherwise omit them.',
     'Return only the summary.',
   ]
     .filter((line) => typeof line === 'string' && line.trim().length > 0)

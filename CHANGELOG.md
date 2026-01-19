@@ -28,7 +28,9 @@
 ### Fixes
 
 - Prompts: ignore sponsor/ads segments in video and podcast summaries.
+- Prompts: enforce no-ads/no-skipped language and italicized standout excerpts (no quotation marks).
 - Media: route direct media URLs to the transcription pipeline and raise the local media limit to 2GB (#47, thanks @n0an).
+- Slides: render Slide X/Y labels and parse slide markers more robustly in streaming output.
 - Chrome Side Panel chat: keep auto-scroll pinned while streaming when you’re already at the bottom.
 - Chrome Side Panel: scope streams/state per window so other windows don’t wipe active summaries.
 - Chrome Side Panel chat: support JSON agent replies with explicit SSE/JSON negotiation to avoid “stream ended” errors.

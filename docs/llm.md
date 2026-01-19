@@ -82,11 +82,11 @@ installed, auto mode can use local CLI models when `cli.enabled` is set (see `do
 
 ## Prompt rules
 
-- Video and podcast summaries ignore sponsor/ads/promotional segments; do not include them in the summary.
-- Do not mention sponsor/ads or that they were skipped.
-- Include 1-2 short direct quotes (quotation marks + Markdown italics) only when a standout line is present; otherwise omit quotes. Use underscores for italics and place them immediately outside the quotation marks. Do not use quotation marks unless italicized; avoid quotation marks for single words or emphasis. Never mention ads/sponsors/boilerplate or that you skipped/ignored them.
-- Final check: remove sponsor/ad references and remove any non-italic quotes.
-- Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).
+- Video and podcast summaries omit sponsor/ads/promotional segments; do not include them in the summary.
+- Do not mention or acknowledge sponsors/ads, and do not say you skipped or ignored anything.
+- If a standout line is present, include 1-2 short exact excerpts formatted as Markdown italics with single asterisks. Do not use quotation marks of any kind (straight or curly). If a title or excerpt would normally use quotes, remove them and optionally italicize the text instead. Apostrophes in contractions are OK. Never include ad/sponsor/boilerplate excerpts and do not mention them. Avoid sponsor/ad/promo language, brand names like Squarespace, or CTA phrases like discount code.
+- Final check: remove sponsor/ad references or mentions of skipping/ignoring content. Remove any quotation marks. Ensure standout excerpts are italicized; otherwise omit them.
+- Hard rules: never mention sponsor/ads; never output quotation marks of any kind (straight or curly), even for titles.
 
 ## Z.AI
 

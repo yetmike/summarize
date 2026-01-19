@@ -20,7 +20,11 @@ import type { Prompt } from '../../../llm/prompt.js'
 import type { ExecFileFn } from '../../../markitdown.js'
 import { buildAutoModelAttempts } from '../../../model-auto.js'
 import type { FixedModelSpec, RequestedModel } from '../../../model-spec.js'
-import { buildPathSummaryPrompt, SUMMARY_LENGTH_TARGET_CHARACTERS } from '../../../prompts/index.js'
+import {
+  buildPathSummaryPrompt,
+  SUMMARY_LENGTH_TARGET_CHARACTERS,
+  SUMMARY_SYSTEM_PROMPT,
+} from '../../../prompts/index.js'
 import type { SummaryLength } from '../../../shared/contracts.js'
 import {
   type AssetAttachment,
@@ -290,6 +294,7 @@ export async function summarizeAsset(ctx: AssetSummaryContext, args: SummarizeAs
     attachment: args.attachment,
   })
   const prompt: Prompt = {
+    system: SUMMARY_SYSTEM_PROMPT,
     userText: promptText,
     ...(attachments.length > 0 ? { attachments } : {}),
   }

@@ -13,7 +13,11 @@ import { formatOutputLanguageForJson } from '../../../language.js'
 import { parseGatewayStyleModelId } from '../../../llm/model-id.js'
 import type { Prompt } from '../../../llm/prompt.js'
 import { buildAutoModelAttempts } from '../../../model-auto.js'
-import { buildLinkSummaryPrompt, SUMMARY_LENGTH_TARGET_CHARACTERS } from '../../../prompts/index.js'
+import {
+  buildLinkSummaryPrompt,
+  SUMMARY_LENGTH_TARGET_CHARACTERS,
+  SUMMARY_SYSTEM_PROMPT,
+} from '../../../prompts/index.js'
 import { parseCliUserModelId } from '../../env.js'
 import {
   buildExtractFinishLabel,
@@ -586,7 +590,7 @@ export async function summarizeExtractedUrl({
 }) {
   const { io, flags, model, cache: cacheState, hooks } = ctx
 
-  const promptPayload: Prompt = { userText: prompt }
+  const promptPayload: Prompt = { system: SUMMARY_SYSTEM_PROMPT, userText: prompt }
   const promptTokens = countTokens(promptPayload.userText)
   const kindForAuto = extracted.siteName === 'YouTube' ? ('youtube' as const) : ('website' as const)
 
