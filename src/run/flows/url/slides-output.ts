@@ -8,7 +8,7 @@ import { prepareMarkdownForTerminalStreaming } from '../../markdown.js'
 import { createSlidesInlineRenderer } from '../../slides-render.js'
 import { createStreamOutputGate, type StreamOutputMode } from '../../stream-output.js'
 import type { SummaryStreamHandler } from '../../summary-engine.js'
-import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js'
+import { ansi, isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js'
 import {
   buildTimestampUrl,
   formatOsc8Link,
@@ -221,7 +221,8 @@ export function createSlidesTerminalOutput({
       ? formatOsc8Link(timestampLabel, timestampUrl, isRichTty(io.stdout) && !flags.plain)
       : null
     const slideLabelBase = total > 0 ? `Slide ${index}/${total}` : `Slide ${index}`
-    const label = timeLink ? `${slideLabelBase} · ${timeLink}` : slideLabelBase
+    const rawLabel = timeLink ? `${slideLabelBase} · ${timeLink}` : slideLabelBase
+    const label = ansi('2', rawLabel, supportsColor(io.stdout, io.envForRun) && !flags.plain)
 
     clearProgressForStdout()
     io.stdout.write('\n')
