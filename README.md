@@ -1,6 +1,6 @@
 # Summarize — Chrome Side Panel + CLI
 
-Fast summaries from URLs, files, and media. Works in the terminal, a Chrome Side Panel and Firefox Sidebar.
+Fast summaries from URLs, files, and media. Smart default: if content is shorter than the requested length, we return it as-is. Works in the terminal, a Chrome Side Panel and Firefox Sidebar.
 
 **0.10.0 preview (unreleased):** this README reflects the upcoming release.
 
