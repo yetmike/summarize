@@ -23,7 +23,7 @@ export type SlideSettingsInput = {
 
 const DEFAULT_OUTPUT_DIR = 'slides'
 const DEFAULT_SCENE_THRESHOLD = 0.3
-const DEFAULT_MAX_SLIDES = 100
+const DEFAULT_MAX_SLIDES = 10
 const DEFAULT_MIN_DURATION_SECONDS = 2
 
 const parseBoolean = (raw: unknown): boolean | null => {

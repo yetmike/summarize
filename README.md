@@ -258,7 +258,7 @@ Use `summarize --help` or `summarize help` for the full help text.
 - `--slides-ocr`: run OCR on extracted slides (requires `tesseract`)
 - `--slides-dir <dir>`: base output dir for slide images (default `./slides`)
 - `--slides-scene-threshold <value>`: scene detection threshold (0.1-1.0)
-- `--slides-max <count>`: maximum slides to extract
+- `--slides-max <count>`: maximum slides to extract (default `10`)
 - `--slides-min-duration <seconds>`: minimum seconds between slides
 - `--json`: machine-readable output with diagnostics, prompt, `metrics`, and optional summary
 - `--verbose`: debug/diagnostics on stderr

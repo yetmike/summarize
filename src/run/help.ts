@@ -45,7 +45,7 @@ export function buildProgram() {
       'Scene detection threshold for slide changes (0.1-1.0).',
       '0.3'
     )
-    .option('--slides-max <count>', 'Maximum slides to extract (default: 100).', '100')
+    .option('--slides-max <count>', 'Maximum slides to extract (default: 10).', '10')
     .option('--slides-min-duration <seconds>', 'Minimum seconds between slides (default: 2).', '2')
     .option('--timestamps', 'Include timestamps in transcripts when available.', false)
     .option(
@@ -190,7 +190,7 @@ export function buildSlidesProgram() {
       'Scene detection threshold for slide changes (0.1-1.0).',
       '0.3'
     )
-    .option('--slides-max <count>', 'Maximum slides to extract (default: 100).', '100')
+    .option('--slides-max <count>', 'Maximum slides to extract (default: 10).', '10')
     .option('--slides-min-duration <seconds>', 'Minimum seconds between slides (default: 2).', '2')
     .addOption(
       new Option('--render <mode>', 'Inline render mode: auto, kitty, iterm, none.')

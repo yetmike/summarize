@@ -14,7 +14,7 @@ describe('resolveSlideSettings', () => {
     expect(settings?.outputDir).toBe('/tmp/slides')
     expect(settings?.sceneThreshold).toBe(0.3)
     expect(settings?.autoTuneThreshold).toBe(true)
-    expect(settings?.maxSlides).toBe(100)
+    expect(settings?.maxSlides).toBe(10)
     expect(settings?.minDurationSeconds).toBe(2)
   })
 
