@@ -219,6 +219,7 @@ export const fetchTranscript = async (
       falApiKey: options.falApiKey,
       url,
       onProgress: progress,
+      mediaKind: 'video',
     })
     if (ytdlpResult.notes.length > 0) {
       notes.push(...ytdlpResult.notes)

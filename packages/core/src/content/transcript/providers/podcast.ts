@@ -209,6 +209,7 @@ export const fetchTranscript = async (
         falApiKey: options.falApiKey,
         url: context.url,
         service: 'podcast',
+        mediaKind: 'audio',
       })
       if (result.notes.length > 0) notes.push(...result.notes)
       return {

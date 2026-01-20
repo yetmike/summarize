@@ -32,6 +32,7 @@ import {
 interface ResolveTranscriptOptions {
   youtubeTranscriptMode?: ProviderFetchOptions['youtubeTranscriptMode']
   mediaTranscriptMode?: ProviderFetchOptions['mediaTranscriptMode']
+  mediaKindHint?: ProviderFetchOptions['mediaKindHint']
   transcriptTimestamps?: ProviderFetchOptions['transcriptTimestamps']
   cacheMode?: CacheMode
   fileMtime?: number | null
@@ -51,6 +52,7 @@ export const resolveTranscriptForLink = async (
   {
     youtubeTranscriptMode,
     mediaTranscriptMode,
+    mediaKindHint,
     transcriptTimestamps,
     cacheMode: providedCacheMode,
     fileMtime,
@@ -116,6 +118,7 @@ export const resolveTranscriptForLink = async (
     onProgress: deps.onProgress ?? null,
     youtubeTranscriptMode: youtubeTranscriptMode ?? 'auto',
     mediaTranscriptMode: mediaTranscriptMode ?? 'auto',
+    mediaKindHint: mediaKindHint ?? null,
     transcriptTimestamps: transcriptTimestamps ?? false,
   })
 

@@ -24,7 +24,7 @@ import { fetchLinkContent } from '../packages/core/src/content/link-preview/cont
 
 const noopFetch = vi.fn(async () => new Response('nope', { status: 500 }))
 
-const createDeps = (text: string) => ({
+const createDeps = (text: string, media?: { kind?: 'video' | 'audio'; url?: string | null }) => ({
   fetch: noopFetch as unknown as typeof fetch,
   scrapeWithFirecrawl: null,
   apifyApiToken: null,
@@ -36,6 +36,14 @@ const createDeps = (text: string) => ({
   readTweetWithBird: async () => ({
     text,
     author: { username: 'birdy' },
+    media: media?.url
+      ? {
+          kind: media.kind ?? 'video',
+          urls: [media.url],
+          preferredUrl: media.url,
+          source: 'card',
+        }
+      : null,
   }),
   resolveTwitterCookies: null,
   onProgress: null,
@@ -69,6 +77,19 @@ describe('twitter long-form transcript skip', () => {
     expect(mocks.resolveTranscriptForLink).not.toHaveBeenCalled()
     expect(result.transcriptSource).toBeNull()
     expect(result.diagnostics.transcript.notes ?? '').toContain('media transcript mode is auto')
+  })
+
+  it('attempts transcript for tweet video in auto mode', async () => {
+    mocks.resolveTranscriptForLink.mockClear()
+
+    const result = await fetchLinkContent(
+      'https://x.com/user/status/123',
+      { format: 'text' },
+      createDeps('short tweet', { kind: 'video', url: 'https://video.twimg.com/test.mp4' })
+    )
+
+    expect(mocks.resolveTranscriptForLink).toHaveBeenCalledTimes(1)
+    expect(result.transcriptSource).toBe('yt-dlp')
   })
 
   it('still attempts transcript for short tweet text when media transcript mode is prefer', async () => {

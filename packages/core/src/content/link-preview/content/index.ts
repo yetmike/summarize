@@ -319,20 +319,26 @@ export async function fetchLinkContent(
       const title = tweet?.author?.username ? `@${tweet.author.username}` : null
       const description = null
       const siteName = 'X'
-      const shouldAttemptTranscript = mediaTranscriptMode === 'prefer'
+      const media = tweet?.media ?? null
+      const mediaUrl = media?.preferredUrl ?? media?.urls?.[0] ?? null
+      const hasMedia = Boolean(mediaUrl)
+      const shouldAttemptTranscript =
+        mediaTranscriptMode === 'prefer' || (mediaTranscriptMode === 'auto' && hasMedia)
       const autoModeNote = !shouldAttemptTranscript
         ? 'Skipped tweet transcript (media transcript mode is auto; enable --video-mode transcript to force audio).'
         : null
       const longFormNote =
-        text.length >= MAX_TWITTER_TEXT_FOR_TRANSCRIPT
+        !hasMedia && text.length >= MAX_TWITTER_TEXT_FOR_TRANSCRIPT
           ? `Skipped yt-dlp transcript for long-form tweet text (${text.length} chars)`
           : null
       const skipTranscriptReason = [autoModeNote, longFormNote].filter(Boolean).join(' ') || null
+      const mediaTranscriptModeForTweet = shouldAttemptTranscript ? 'prefer' : mediaTranscriptMode
       const transcriptResolution = skipTranscriptReason
         ? buildSkippedTwitterTranscript(cacheMode, skipTranscriptReason)
         : await resolveTranscriptForLink(url, null, deps, {
             youtubeTranscriptMode,
-            mediaTranscriptMode,
+            mediaTranscriptMode: mediaTranscriptModeForTweet,
+            mediaKindHint: media?.kind ?? null,
             transcriptTimestamps,
             cacheMode,
             fileMtime,
@@ -353,7 +359,13 @@ export async function fetchLinkContent(
         description,
         siteName,
         transcriptResolution,
-        video: null,
+        video:
+          mediaUrl && media?.kind === 'video'
+            ? {
+                kind: 'direct',
+                url: mediaUrl,
+              }
+            : null,
         isVideoOnly: false,
         diagnostics: {
           strategy: 'bird',

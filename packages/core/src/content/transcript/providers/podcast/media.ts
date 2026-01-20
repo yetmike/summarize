@@ -76,6 +76,7 @@ export async function transcribeMediaUrl({
     url: progress.url,
     service: progress.service,
     mediaUrl: url,
+    mediaKind: 'audio',
     totalBytes,
   })
   if (!canChunk) {
@@ -88,6 +89,7 @@ export async function transcribeMediaUrl({
           service: progress.service,
           downloadedBytes,
           totalBytes,
+          mediaKind: 'audio',
         }),
     })
     progress?.onProgress?.({
@@ -96,6 +98,7 @@ export async function transcribeMediaUrl({
       service: progress.service,
       downloadedBytes: bytes.byteLength,
       totalBytes,
+      mediaKind: 'audio',
     })
     progress?.onProgress?.({
       kind: 'transcript-whisper-start',
@@ -141,6 +144,7 @@ export async function transcribeMediaUrl({
           service: progress.service,
           downloadedBytes,
           totalBytes,
+          mediaKind: 'audio',
         }),
     })
     progress?.onProgress?.({
@@ -149,6 +153,7 @@ export async function transcribeMediaUrl({
       service: progress.service,
       downloadedBytes: bytes.byteLength,
       totalBytes,
+      mediaKind: 'audio',
     })
     progress?.onProgress?.({
       kind: 'transcript-whisper-start',
@@ -194,6 +199,7 @@ export async function transcribeMediaUrl({
           service: progress.service,
           downloadedBytes: nextDownloadedBytes,
           totalBytes,
+          mediaKind: 'audio',
         }),
     })
     progress?.onProgress?.({
@@ -202,6 +208,7 @@ export async function transcribeMediaUrl({
       service: progress.service,
       downloadedBytes,
       totalBytes,
+      mediaKind: 'audio',
     })
 
     const probedDurationSeconds =

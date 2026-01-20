@@ -22,6 +22,9 @@ export const fetchTranscript = async (
   const notes: string[] = []
 
   const embedded = context.html ? detectEmbeddedMedia(context.html, context.url) : null
+  const twitterStatus = isTwitterStatusUrl(context.url)
+  const hasEmbeddedMedia = Boolean(embedded?.mediaUrl || embedded?.kind)
+  const mediaKindHint = options.mediaKindHint ?? embedded?.kind ?? null
   if (embedded?.track) {
     attemptedProviders.push('embedded')
     const caption = await fetchCaptionTrack(
@@ -48,13 +51,14 @@ export const fetchTranscript = async (
     }
   }
 
-  const mediaUrl =
-    options.mediaTranscriptMode === 'prefer'
-      ? (embedded?.mediaUrl ?? (isDirectMediaUrl(context.url) ? context.url : null))
-      : null
+  const shouldAttemptMediaTranscript =
+    options.mediaTranscriptMode === 'prefer' || (twitterStatus && hasEmbeddedMedia)
+  const mediaUrl = shouldAttemptMediaTranscript
+    ? (embedded?.mediaUrl ?? (isDirectMediaUrl(context.url) ? context.url : null))
+    : null
 
   if (
-    options.mediaTranscriptMode === 'prefer' &&
+    shouldAttemptMediaTranscript &&
     (mediaUrl || embedded?.kind || isDirectMediaUrl(context.url))
   ) {
     const result = await fetchDirectMediaTranscript({
@@ -67,7 +71,7 @@ export const fetchTranscript = async (
     if (result) return result
   }
 
-  if (isTwitterStatusUrl(context.url) && options.mediaTranscriptMode !== 'prefer') {
+  if (twitterStatus && options.mediaTranscriptMode !== 'prefer' && !hasEmbeddedMedia) {
     return {
       text: null,
       source: null,
@@ -136,6 +140,7 @@ export const fetchTranscript = async (
     onProgress: options.onProgress ?? null,
     service: 'generic',
     extraArgs: extraArgs.length > 0 ? extraArgs : undefined,
+    mediaKind: mediaKindHint,
   })
   if (ytdlpResult.notes.length > 0) {
     notes.push(...ytdlpResult.notes)
@@ -369,6 +374,7 @@ async function fetchDirectMediaTranscript({
     url,
     onProgress: options.onProgress ?? null,
     service: 'generic',
+    mediaKind: kind ?? options.mediaKindHint ?? null,
   })
   if (ytdlpResult.notes.length > 0) {
     notes.push(...ytdlpResult.notes)

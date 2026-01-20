@@ -327,27 +327,71 @@ export async function extractSlidesForSource({
           logSlidesTiming(`yt-dlp stream url (detect+extract, format=${format})`, streamStartedAt)
         }
       } else if (source.kind === 'direct') {
-        reportSlidesProgress?.('downloading video', P_FETCH_VIDEO)
-        const downloadStartedAt = Date.now()
-        try {
-          const downloaded = await downloadRemoteVideo({
-            url: source.url,
-            timeoutMs,
-            onProgress: (percent, detail) => {
-              const ratio = clamp(percent / 100, 0, 1)
-              const mapped = P_FETCH_VIDEO + ratio * (P_DOWNLOAD_VIDEO - P_FETCH_VIDEO)
-              reportSlidesProgress?.('downloading video', mapped, detail)
-            },
-          })
-          inputPath = downloaded.filePath
-          inputCleanup = downloaded.cleanup
-          logSlidesTiming('download direct video (detect+extract)', downloadStartedAt)
-        } catch (error) {
-          if (!allowStreamFallback) {
-            throw error
+        const shouldUseYtDlp = !isDirectMediaUrl(source.url)
+        if (shouldUseYtDlp) {
+          if (!ytDlpPath) {
+            throw new Error(
+              'Slides for remote videos require yt-dlp (set YT_DLP_PATH or install yt-dlp).'
+            )
           }
-          warnings.push(`Failed to download video; falling back to stream URL: ${String(error)}`)
-          inputPath = source.url
+          const ytDlp = ytDlpPath
+          const format = resolveSlidesYtDlpExtractFormat(env)
+          reportSlidesProgress?.('downloading video', P_FETCH_VIDEO)
+          const downloadStartedAt = Date.now()
+          try {
+            const downloaded = await downloadYoutubeVideo({
+              ytDlpPath: ytDlp,
+              url: source.url,
+              timeoutMs,
+              format,
+              onProgress: (percent, detail) => {
+                const ratio = clamp(percent / 100, 0, 1)
+                const mapped = P_FETCH_VIDEO + ratio * (P_DOWNLOAD_VIDEO - P_FETCH_VIDEO)
+                reportSlidesProgress?.('downloading video', mapped, detail)
+              },
+            })
+            inputPath = downloaded.filePath
+            inputCleanup = downloaded.cleanup
+            logSlidesTiming(`yt-dlp download (direct source, format=${format})`, downloadStartedAt)
+          } catch (error) {
+            if (!allowStreamFallback) {
+              throw error
+            }
+            warnings.push(`Failed to download video; falling back to stream URL: ${String(error)}`)
+            reportSlidesProgress?.('fetching video', P_FETCH_VIDEO)
+            const streamStartedAt = Date.now()
+            const streamUrl = await resolveYoutubeStreamUrl({
+              ytDlpPath: ytDlp,
+              url: source.url,
+              format,
+              timeoutMs,
+            })
+            inputPath = streamUrl
+            logSlidesTiming(`yt-dlp stream url (direct source, format=${format})`, streamStartedAt)
+          }
+        } else {
+          reportSlidesProgress?.('downloading video', P_FETCH_VIDEO)
+          const downloadStartedAt = Date.now()
+          try {
+            const downloaded = await downloadRemoteVideo({
+              url: source.url,
+              timeoutMs,
+              onProgress: (percent, detail) => {
+                const ratio = clamp(percent / 100, 0, 1)
+                const mapped = P_FETCH_VIDEO + ratio * (P_DOWNLOAD_VIDEO - P_FETCH_VIDEO)
+                reportSlidesProgress?.('downloading video', mapped, detail)
+              },
+            })
+            inputPath = downloaded.filePath
+            inputCleanup = downloaded.cleanup
+            logSlidesTiming('download direct video (detect+extract)', downloadStartedAt)
+          } catch (error) {
+            if (!allowStreamFallback) {
+              throw error
+            }
+            warnings.push(`Failed to download video; falling back to stream URL: ${String(error)}`)
+            inputPath = source.url
+          }
         }
       }
 

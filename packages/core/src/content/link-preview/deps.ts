@@ -55,6 +55,7 @@ export type LinkPreviewProgressEvent =
       url: string
       service: 'youtube' | 'podcast' | 'generic'
       mediaUrl: string | null
+      mediaKind?: 'video' | 'audio' | null
       totalBytes: number | null
     }
   | {
@@ -63,6 +64,7 @@ export type LinkPreviewProgressEvent =
       service: 'youtube' | 'podcast' | 'generic'
       downloadedBytes: number
       totalBytes: number | null
+      mediaKind?: 'video' | 'audio' | null
     }
   | {
       kind: 'transcript-media-download-done'
@@ -70,6 +72,7 @@ export type LinkPreviewProgressEvent =
       service: 'youtube' | 'podcast' | 'generic'
       downloadedBytes: number
       totalBytes: number | null
+      mediaKind?: 'video' | 'audio' | null
     }
   | {
       kind: 'transcript-whisper-start'
@@ -135,11 +138,19 @@ export type ConvertHtmlToMarkdown = (args: {
   timeoutMs: number
 }) => Promise<string>
 
+export type BirdTweetMedia = {
+  kind: 'video' | 'audio'
+  urls: string[]
+  preferredUrl: string | null
+  source: 'extended_entities' | 'card' | 'entities'
+}
+
 export type BirdTweetPayload = {
   id?: string
   text: string
   author?: { username?: string; name?: string }
   createdAt?: string
+  media?: BirdTweetMedia | null
 }
 
 export type ReadTweetWithBird = (args: {

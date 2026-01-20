@@ -25,6 +25,7 @@ export function createTranscriptProgressRenderer({
     totalBytes: number | null
     startedAtMs: number | null
     whisperProviderHint: 'cpp' | 'onnx' | 'openai' | 'fal' | 'openai->fal' | 'unknown'
+    mediaKind: 'video' | 'audio' | 'unknown'
     whisperModelId: string | null
     whisperProcessedSeconds: number | null
     whisperTotalSeconds: number | null
@@ -38,6 +39,7 @@ export function createTranscriptProgressRenderer({
     totalBytes: null,
     startedAtMs: null,
     whisperProviderHint: 'unknown',
+    mediaKind: 'unknown',
     whisperModelId: null,
     whisperProcessedSeconds: null,
     whisperTotalSeconds: null,
@@ -93,8 +95,15 @@ export function createTranscriptProgressRenderer({
         : ''
     const svc =
       state.service === 'podcast' ? 'podcast' : state.service === 'youtube' ? 'youtube' : 'media'
-    return `Downloading audio (${svc}, ${downloaded}${total}, ${elapsed}${rate})…`
+    const kindLabel = state.mediaKind === 'audio' ? 'audio' : 'media'
+    const kindDetail =
+      state.mediaKind === 'video' ? 'video' : state.mediaKind === 'audio' ? 'audio' : null
+    const svcLabel = kindDetail ? `${svc}, ${kindDetail}` : svc
+    return `Downloading ${kindLabel} (${svcLabel}, ${downloaded}${total}, ${elapsed}${rate})…`
   }
+
+  const downloadTitle = () =>
+    state.mediaKind === 'audio' ? 'Downloading audio' : 'Downloading media'
 
   const formatProvider = (hint: typeof state.whisperProviderHint) => {
     if (hint === 'cpp') return 'Whisper.cpp'
@@ -141,26 +150,28 @@ export function createTranscriptProgressRenderer({
       if (event.kind === 'transcript-media-download-start') {
         state.phase = 'download'
         state.service = event.service
+        state.mediaKind = event.mediaKind ?? 'unknown'
         state.downloadedBytes = 0
         state.totalBytes = event.totalBytes
         state.startedAtMs = Date.now()
         stopTicker()
         startTicker(renderDownloadLine)
-        updateSpinner('Downloading audio…', { force: true })
-        updateOscIndeterminate('Downloading audio')
+        updateSpinner(`${downloadTitle()}…`, { force: true })
+        updateOscIndeterminate(downloadTitle())
         return
       }
 
       if (event.kind === 'transcript-media-download-progress') {
         state.phase = 'download'
         state.service = event.service
+        state.mediaKind = event.mediaKind ?? state.mediaKind
         state.downloadedBytes = event.downloadedBytes
         state.totalBytes = event.totalBytes
         updateSpinner(renderDownloadLine())
         if (typeof state.totalBytes === 'number' && state.totalBytes > 0) {
-          updateOscPercent('Downloading audio', (state.downloadedBytes / state.totalBytes) * 100)
+          updateOscPercent(downloadTitle(), (state.downloadedBytes / state.totalBytes) * 100)
         } else {
-          updateOscIndeterminate('Downloading audio')
+          updateOscIndeterminate(downloadTitle())
         }
         return
       }
@@ -168,6 +179,7 @@ export function createTranscriptProgressRenderer({
       if (event.kind === 'transcript-media-download-done') {
         state.phase = 'download'
         state.service = event.service
+        state.mediaKind = event.mediaKind ?? state.mediaKind
         state.downloadedBytes = event.downloadedBytes
         state.totalBytes = event.totalBytes
         stopTicker()

@@ -30,6 +30,7 @@ type YtDlpRequest = {
   url: string
   onProgress?: ((event: LinkPreviewProgressEvent) => void) | null
   service?: 'youtube' | 'podcast' | 'generic'
+  mediaKind?: 'video' | 'audio' | null
   extraArgs?: string[]
 }
 
@@ -46,6 +47,7 @@ export const fetchTranscriptWithYtDlp = async ({
   url,
   onProgress,
   service = 'youtube',
+  mediaKind = null,
   extraArgs,
 }: YtDlpRequest): Promise<YtDlpTranscriptResult> => {
   const notes: string[] = []
@@ -87,6 +89,7 @@ export const fetchTranscriptWithYtDlp = async ({
       url,
       service,
       mediaUrl: url,
+      mediaKind,
       totalBytes: null,
     })
     await downloadAudio(
@@ -102,6 +105,7 @@ export const fetchTranscriptWithYtDlp = async ({
               service,
               downloadedBytes,
               totalBytes,
+              mediaKind,
             })
           }
         : null
@@ -113,6 +117,7 @@ export const fetchTranscriptWithYtDlp = async ({
       service,
       downloadedBytes: stat.size,
       totalBytes: null,
+      mediaKind,
     })
 
     const probedDurationSeconds = await probeMediaDurationSecondsWithFfprobe(outputFile)
