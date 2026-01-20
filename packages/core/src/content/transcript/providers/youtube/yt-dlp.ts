@@ -14,6 +14,8 @@ import { resolveTranscriptionStartInfo } from '../transcription-start.js'
 
 const YT_DLP_TIMEOUT_MS = 300_000
 const MAX_STDERR_BYTES = 8192
+const DEFAULT_AUDIO_FORMAT =
+  'bestaudio[vcodec=none]/best[height<=360]/best[height<=480]/best[height<=720]/best'
 
 type YtDlpTranscriptResult = {
   text: string | null
@@ -235,9 +237,13 @@ async function downloadAudio(
     // Add --enable-file-urls flag for local file:// URLs
     const isFileUrl = url.startsWith('file://')
     const args = [
+      '-f',
+      DEFAULT_AUDIO_FORMAT,
       '-x',
       '--audio-format',
       'mp3',
+      '--concurrent-fragments',
+      '4',
       '--no-playlist',
       '--retries',
       '3',

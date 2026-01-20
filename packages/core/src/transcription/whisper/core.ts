@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { transcribeWithOnnxCli, transcribeWithOnnxCliFile } from '../onnx-cli.js'
+import {
+  resolvePreferredOnnxModel,
+  transcribeWithOnnxCli,
+  transcribeWithOnnxCliFile,
+} from '../onnx-cli.js'
 import { DEFAULT_SEGMENT_SECONDS, MAX_OPENAI_UPLOAD_BYTES } from './constants.js'
 import { transcribeWithFal } from './fal.js'
 import { isFfmpegAvailable, runFfmpegSegment, transcodeBytesToMp3 } from './ffmpeg.js'
@@ -17,10 +21,17 @@ import { isWhisperCppReady, transcribeWithWhisperCppFile } from './whisper-cpp.j
 
 type Env = Record<string, string | undefined>
 
-function resolveTranscriberPreference(env: Env): 'whisper' | 'parakeet' | 'canary' {
+function resolveTranscriberPreference(env: Env): 'auto' | 'whisper' | 'parakeet' | 'canary' {
   const raw = env.SUMMARIZE_TRANSCRIBER?.trim().toLowerCase()
-  if (raw === 'parakeet' || raw === 'canary') return raw
-  return 'whisper'
+  if (raw === 'auto' || raw === 'whisper' || raw === 'parakeet' || raw === 'canary') return raw
+  return 'auto'
+}
+
+function resolveOnnxModelPreference(env: Env): 'parakeet' | 'canary' | null {
+  const preference = resolveTranscriberPreference(env)
+  if (preference === 'parakeet' || preference === 'canary') return preference
+  if (preference === 'auto') return resolvePreferredOnnxModel(env)
+  return null
 }
 
 export async function transcribeMediaWithWhisper({
@@ -44,10 +55,10 @@ export async function transcribeMediaWithWhisper({
 }): Promise<WhisperTranscriptionResult> {
   const notes: string[] = []
 
-  const preferredTranscriber = resolveTranscriberPreference(env)
-  if (preferredTranscriber !== 'whisper') {
+  const onnxPreference = resolveOnnxModelPreference(env)
+  if (onnxPreference) {
     const onnx = await transcribeWithOnnxCli({
-      model: preferredTranscriber,
+      model: onnxPreference,
       bytes,
       mediaType,
       filename,
@@ -252,8 +263,8 @@ export async function transcribeMediaFileWithWhisper({
 }): Promise<WhisperTranscriptionResult> {
   const notes: string[] = []
 
-  const preferredTranscriber = resolveTranscriberPreference(env)
-  if (preferredTranscriber !== 'whisper') {
+  const onnxPreference = resolveOnnxModelPreference(env)
+  if (onnxPreference) {
     onProgress?.({
       partIndex: null,
       parts: null,
@@ -261,7 +272,7 @@ export async function transcribeMediaFileWithWhisper({
       totalDurationSeconds,
     })
     const onnx = await transcribeWithOnnxCliFile({
-      model: preferredTranscriber,
+      model: onnxPreference,
       filePath,
       mediaType,
       totalDurationSeconds,

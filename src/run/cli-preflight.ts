@@ -8,6 +8,7 @@ import {
   buildProgram,
   buildRefreshFreeHelp,
   buildSlidesProgram,
+  buildTranscriberHelp,
 } from './help.js'
 
 type HelpContext = {
@@ -45,6 +46,10 @@ export function handleHelpRequest({
     })
     applyHelpStyle(slidesProgram, envForRun, stdout)
     slidesProgram.outputHelp()
+    return true
+  }
+  if (topic === 'transcriber') {
+    stdout.write(`${buildTranscriberHelp()}\n`)
     return true
   }
 

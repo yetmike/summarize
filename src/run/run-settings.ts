@@ -43,7 +43,7 @@ export type RunOverrides = {
   timeoutMs: number | null
   retries: number | null
   maxOutputTokensArg: number | null
-  transcriber: 'whisper' | 'parakeet' | 'canary' | null
+  transcriber: 'auto' | 'whisper' | 'parakeet' | 'canary' | null
 }
 
 export type RunOverridesInput = {
@@ -259,7 +259,12 @@ export function resolveRunOverrides(
   const transcriberOverride = (() => {
     if (typeof transcriber !== 'string') return null
     const normalized = transcriber.trim().toLowerCase()
-    if (normalized === 'whisper' || normalized === 'parakeet' || normalized === 'canary') {
+    if (
+      normalized === 'auto' ||
+      normalized === 'whisper' ||
+      normalized === 'parakeet' ||
+      normalized === 'canary'
+    ) {
       return normalized
     }
     if (strict) {

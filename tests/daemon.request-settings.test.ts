@@ -61,6 +61,9 @@ describe('run/run-settings overrides', () => {
     const overrides = resolveRunOverrides({ transcriber: 'Parakeet ' })
     expect(overrides.transcriber).toBe('parakeet')
 
+    const auto = resolveRunOverrides({ transcriber: 'auto' })
+    expect(auto.transcriber).toBe('auto')
+
     const invalid = resolveRunOverrides({ transcriber: 'gpt-4o' })
     expect(invalid.transcriber).toBeNull()
   })

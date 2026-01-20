@@ -355,6 +355,15 @@ Local audio/video files are transcribed first, then summarized. `--video-mode tr
 direct media URLs (and embedded media) through Whisper first. Prefers local `whisper.cpp` when available; otherwise requires
 `OPENAI_API_KEY` or `FAL_KEY`.
 
+### Local ONNX transcription (Parakeet/Canary)
+
+Summarize can use NVIDIA Parakeet/Canary ONNX models via a local CLI you provide. Auto selection (default) prefers ONNX when configured.
+
+- Setup helper: `summarize transcriber setup`
+- Auto selection: set `SUMMARIZE_ONNX_PARAKEET_CMD` or `SUMMARIZE_ONNX_CANARY_CMD` (no flag needed)
+- Force a model: `--transcriber parakeet|canary|whisper|auto`
+- Docs: `docs/nvidia-onnx-transcription.md`
+
 ### Verified podcast services (2025-12-25)
 
 Run: `summarize <url>`

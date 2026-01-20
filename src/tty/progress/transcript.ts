@@ -126,7 +126,10 @@ export function createTranscriptProgressRenderer({
       state.whisperTotalSeconds > 0
         ? Math.min(
             100,
-            Math.max(0, Math.round((state.whisperProcessedSeconds / state.whisperTotalSeconds) * 100))
+            Math.max(
+              0,
+              Math.round((state.whisperProcessedSeconds / state.whisperTotalSeconds) * 100)
+            )
           )
         : null
 

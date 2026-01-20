@@ -49,10 +49,13 @@
 - Daemon: emit slides start/progress/done metadata in extended logging for easier debugging.
 - Media: refactor routing helpers and size policy (#48, thanks @steipete).
 - CLI: show determinate transcription progress percent when duration is known.
+- Transcription: add auto transcriber selection (default) with ONNX-first when configured + `summarize transcriber setup`.
+- Slides: cap auto slide targets at 20 by default for long videos.
 
 ### Docs
 
 - README: 0.10.0 preview layout with clearer install flow, daemon rationale, and prominent Chrome Web Store link.
+- README: document ONNX transcriber setup + auto selection.
 
 ## 0.9.0 - 2025-12-31
 

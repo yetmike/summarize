@@ -15,8 +15,8 @@ export function buildProgram() {
     .addOption(
       new Option(
         '--transcriber <name>',
-        'Audio transcription backend: whisper (default), parakeet, canary'
-      ).choices(['whisper', 'parakeet', 'canary'])
+        'Audio transcription backend: auto (default), whisper, parakeet, canary'
+      ).choices(['auto', 'whisper', 'parakeet', 'canary'])
     )
     .addOption(
       new Option(
@@ -214,6 +214,7 @@ ${heading('Examples')}
   ${cmd('summarize "https://www.youtube.com/watch?v=..." --slides --slides-ocr')} ${dim('# slides + OCR extraction')}
   ${cmd('summarize "https://www.youtube.com/watch?v=..." --slides --extract')} ${dim('# full transcript + inline slides')}
   ${cmd('summarize slides "https://www.youtube.com/watch?v=..." --render auto')} ${dim('# slides-only mode with inline thumbnails')}
+  ${cmd('summarize transcriber setup')} ${dim('# configure local ONNX transcription (parakeet/canary)')}
   ${cmd('summarize "https://example.com" --length 20k --max-output-tokens 2k --timeout 2m --model openai/gpt-5-mini')}
   ${cmd('summarize "https://example.com" --model mymodel')} ${dim('# config preset')}
   ${cmd('summarize "https://example.com" --json --verbose')}
@@ -237,11 +238,14 @@ ${heading('Env Vars')}
   SUMMARIZE_MODEL       optional (overrides default model selection)
   FIRECRAWL_API_KEY     optional website extraction fallback (Markdown)
   APIFY_API_TOKEN       optional YouTube transcript fallback
-  SUMMARIZE_TRANSCRIBER optional (whisper, parakeet, canary)
+  SUMMARIZE_TRANSCRIBER optional (auto, whisper, parakeet, canary)
   SUMMARIZE_ONNX_PARAKEET_CMD optional (command to run Parakeet ONNX transcription; use {input} placeholder)
   SUMMARIZE_ONNX_CANARY_CMD optional (command to run Canary ONNX transcription; use {input} placeholder)
   YT_DLP_PATH           optional path to yt-dlp binary for audio extraction
   FAL_KEY               optional FAL AI API key for audio transcription
+
+${heading('Hint')}
+  ${cmd('summarize transcriber setup')} ${dim('# set up local ONNX transcription; auto prefers it when configured')}
 
 ${heading('Support')}
   ${SUPPORT_URL}
@@ -293,5 +297,21 @@ export function buildDaemonHelp(): string {
     '  --dev            Install service that runs src/cli.ts via tsx (repo dev mode)',
     '  --port <n>       (default: 8787)',
     '  --token <token>  (required for install)',
+  ].join('\n')
+}
+
+export function buildTranscriberHelp(): string {
+  return [
+    'Usage: summarize transcriber setup [--model parakeet|canary]',
+    '',
+    'Configures local ONNX transcription by printing the required env vars.',
+    'Auto selection prefers ONNX when configured, then whisper.cpp, then OpenAI/FAL.',
+    '',
+    'Options:',
+    '  --model <name>   parakeet (default) or canary',
+    '',
+    'Examples:',
+    '  summarize transcriber setup',
+    '  summarize transcriber setup --model canary',
   ].join('\n')
 }

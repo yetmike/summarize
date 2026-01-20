@@ -180,7 +180,7 @@ export async function readTweetWithBird(args: {
             reject(new Error('bird read returned invalid payload'))
             return
           }
-          const { _raw, ...rest } = tweet as { _raw?: unknown }
+          const { _raw, ...rest } = tweet as BirdTweetPayload & { _raw?: unknown }
           const media = extractMediaFromBirdRaw(_raw)
           resolve({ ...rest, media })
         } catch (parseError) {

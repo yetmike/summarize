@@ -16,7 +16,11 @@ type Env = Record<string, string | undefined>
 
 export function resolvePreferredOnnxModel(env: Env = process.env): OnnxModelId | null {
   const raw = env.SUMMARIZE_TRANSCRIBER?.trim().toLowerCase() ?? ''
-  return raw === 'parakeet' || raw === 'canary' ? raw : null
+  if (raw === 'parakeet' || raw === 'canary') return raw
+  if (raw && raw !== 'auto') return null
+  if (resolveOnnxCommand('parakeet', env)) return 'parakeet'
+  if (resolveOnnxCommand('canary', env)) return 'canary'
+  return null
 }
 
 export function isOnnxCliConfigured(model: OnnxModelId, env: Env = process.env): boolean {

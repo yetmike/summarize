@@ -697,12 +697,16 @@ async function downloadYoutubeVideo({
 }): Promise<{ filePath: string; cleanup: () => Promise<void> }> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), `summarize-slides-${randomUUID()}-`))
   const outputTemplate = path.join(dir, 'video.%(ext)s')
+  const progressTemplate =
+    'progress:%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s'
   const args = [
     '-f',
     format,
     '--no-playlist',
     '--no-warnings',
-    '--newline',
+    '--concurrent-fragments',
+    '4',
+    ...(onProgress ? ['--progress', '--newline', '--progress-template', progressTemplate] : []),
     '-o',
     outputTemplate,
     url,
@@ -715,6 +719,25 @@ async function downloadYoutubeVideo({
     onStderrLine: (line) => {
       if (!onProgress) return
       const trimmed = line.trim()
+      if (trimmed.startsWith('progress:')) {
+        const payload = trimmed.slice('progress:'.length)
+        const [downloadedRaw, totalRaw, estimateRaw] = payload.split('|')
+        const downloaded = Number.parseFloat(downloadedRaw)
+        if (!Number.isFinite(downloaded) || downloaded < 0) return
+        const totalCandidate = Number.parseFloat(totalRaw)
+        const estimateCandidate = Number.parseFloat(estimateRaw)
+        const totalBytes =
+          Number.isFinite(totalCandidate) && totalCandidate > 0
+            ? totalCandidate
+            : Number.isFinite(estimateCandidate) && estimateCandidate > 0
+              ? estimateCandidate
+              : null
+        if (!totalBytes || totalBytes <= 0) return
+        const percent = Math.max(0, Math.min(100, Math.round((downloaded / totalBytes) * 100)))
+        const detail = `(${formatBytes(downloaded)}/${formatBytes(totalBytes)})`
+        onProgress(percent, detail)
+        return
+      }
       if (!trimmed.startsWith('[download]')) return
       const percentMatch = trimmed.match(/\b(\d{1,3}(?:\.\d+)?)%\b/)
       if (!percentMatch) return
@@ -728,6 +751,27 @@ async function downloadYoutubeVideo({
       ].filter(Boolean)
       onProgress(percent, detailParts.length ? detailParts.join(' ') : undefined)
     },
+    onStdoutLine: onProgress
+      ? (line) => {
+          if (!line.trim().startsWith('progress:')) return
+          const payload = line.trim().slice('progress:'.length)
+          const [downloadedRaw, totalRaw, estimateRaw] = payload.split('|')
+          const downloaded = Number.parseFloat(downloadedRaw)
+          if (!Number.isFinite(downloaded) || downloaded < 0) return
+          const totalCandidate = Number.parseFloat(totalRaw)
+          const estimateCandidate = Number.parseFloat(estimateRaw)
+          const totalBytes =
+            Number.isFinite(totalCandidate) && totalCandidate > 0
+              ? totalCandidate
+              : Number.isFinite(estimateCandidate) && estimateCandidate > 0
+                ? estimateCandidate
+                : null
+          if (!totalBytes || totalBytes <= 0) return
+          const percent = Math.max(0, Math.min(100, Math.round((downloaded / totalBytes) * 100)))
+          const detail = `(${formatBytes(downloaded)}/${formatBytes(totalBytes)})`
+          onProgress(percent, detail)
+        }
+      : undefined,
   })
 
   const files = await fs.readdir(dir)
@@ -1876,7 +1920,7 @@ function buildIntervalTimestamps({
 }): { timestamps: number[]; intervalSeconds: number } | null {
   if (!durationSeconds || durationSeconds <= 0) return null
   const maxCount = Math.max(1, Math.floor(maxSlides))
-  const targetCount = Math.min(maxCount, Math.max(3, Math.round(durationSeconds / 120)))
+  const targetCount = Math.min(maxCount, clamp(Math.round(durationSeconds / 180), 6, 20))
   const intervalSeconds = Math.max(minDurationSeconds, durationSeconds / targetCount)
   if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) return null
   const timestamps: number[] = []

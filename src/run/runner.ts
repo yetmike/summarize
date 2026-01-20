@@ -43,6 +43,7 @@ import { resolveStreamSettings } from './run-stream.js'
 import { handleSlidesCliRequest } from './slides-cli.js'
 import { createSummaryEngine } from './summary-engine.js'
 import { ansi, isRichTty, supportsColor } from './terminal.js'
+import { handleTranscriberCliRequest } from './transcriber-cli.js'
 
 type RunEnv = {
   env: Record<string, string | undefined>
@@ -92,6 +93,16 @@ export async function runCli(
       normalizedArgv,
       envForRun,
       fetchImpl: fetch,
+      stdout,
+      stderr,
+    })
+  ) {
+    return
+  }
+  if (
+    await handleTranscriberCliRequest({
+      normalizedArgv,
+      envForRun,
       stdout,
       stderr,
     })
@@ -261,10 +272,17 @@ export async function runCli(
   const debug = Boolean(program.opts().debug)
   const verbose = Boolean(program.opts().verbose) || debug
 
-  const normalizeTranscriber = (value: unknown): 'whisper' | 'parakeet' | 'canary' | null => {
+  const normalizeTranscriber = (
+    value: unknown
+  ): 'auto' | 'whisper' | 'parakeet' | 'canary' | null => {
     if (typeof value !== 'string') return null
     const normalized = value.trim().toLowerCase()
-    if (normalized === 'whisper' || normalized === 'parakeet' || normalized === 'canary')
+    if (
+      normalized === 'auto' ||
+      normalized === 'whisper' ||
+      normalized === 'parakeet' ||
+      normalized === 'canary'
+    )
       return normalized
     return null
   }
@@ -278,7 +296,7 @@ export async function runCli(
     null
   const transcriber =
     normalizeTranscriber(transcriberExplicitlySet ? program.opts().transcriber : envTranscriber) ??
-    'whisper'
+    'auto'
   ;(envForRun as Record<string, string | undefined>).SUMMARIZE_TRANSCRIBER = transcriber
 
   const maxExtractCharacters = parseMaxExtractCharactersArg(
