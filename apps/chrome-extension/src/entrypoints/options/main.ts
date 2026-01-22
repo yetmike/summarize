@@ -158,7 +158,7 @@ const processesViewer = createProcessesViewer({
     logsOutputEl: processesLogsOutputEl,
   },
   getToken: () => tokenEl.value.trim(),
-  isActive: () => resolveActiveTab() === 'advanced',
+  isActive: () => resolveActiveTab() === 'processes',
 })
 
 const setActiveTab = (tabId: string) => {
@@ -178,7 +178,7 @@ const setActiveTab = (tabId: string) => {
   } else {
     logsViewer.handleTabDeactivated()
   }
-  if (tabId === 'advanced') {
+  if (tabId === 'processes') {
     processesViewer.handleTabActivated()
   } else {
     processesViewer.handleTabDeactivated()
