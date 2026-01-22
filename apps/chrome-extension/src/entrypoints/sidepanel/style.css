@@ -482,6 +482,10 @@ header {
   border-bottom: 0;
   background: var(--panel);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .headerRow {

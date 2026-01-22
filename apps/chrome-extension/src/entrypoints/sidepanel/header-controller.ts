@@ -34,6 +34,14 @@ export function createHeaderController({
   let statusText = ''
   let showProgress = false
   let progressOverride = false
+  let rafId: number | null = null
+  let lastTitle = ''
+  let lastSubtitle = ''
+  let lastIsError = false
+  let lastIsRunning = false
+  let lastIsIndeterminate = false
+  let lastProgress = ''
+  let lastProgressDisplay = ''
 
   const shouldAllowProgress = (force = false) =>
     force || progressOverride || getState().summaryFromCache !== true
@@ -61,7 +69,7 @@ export function createHeaderController({
     )
   }
 
-  const updateHeader = () => {
+  const renderHeader = () => {
     const { phase } = getState()
     const isStreaming = phase === 'connecting' || phase === 'streaming'
     const trimmed = statusText.trim()
@@ -79,10 +87,10 @@ export function createHeaderController({
     const shouldShowStatus =
       showStatus && (!isStreaming || !baseSubtitle || allowStatusWithSubtitle)
 
-    titleEl.textContent = baseTitle
-    headerEl.classList.toggle('isError', isError)
-    headerEl.classList.toggle('isRunning', isRunning)
-    headerEl.classList.toggle('isIndeterminate', isRunning && percentNum == null)
+    if (baseTitle !== lastTitle) {
+      titleEl.textContent = baseTitle
+      lastTitle = baseTitle
+    }
 
     if (
       !isError &&
@@ -91,21 +99,58 @@ export function createHeaderController({
       percentNum >= 0 &&
       percentNum <= 100
     ) {
-      headerEl.style.setProperty('--progress', `${percentNum}%`)
+      const next = `${percentNum}%`
+      if (next !== lastProgress) {
+        headerEl.style.setProperty('--progress', next)
+        lastProgress = next
+      }
     } else {
-      headerEl.style.setProperty('--progress', '0%')
+      if (lastProgress !== '0%') {
+        headerEl.style.setProperty('--progress', '0%')
+        lastProgress = '0%'
+      }
     }
 
-    progressFillEl.style.display = isRunning || isError ? '' : 'none'
+    if (isError !== lastIsError) {
+      headerEl.classList.toggle('isError', isError)
+      lastIsError = isError
+    }
+    if (isRunning !== lastIsRunning) {
+      headerEl.classList.toggle('isRunning', isRunning)
+      lastIsRunning = isRunning
+    }
+    const isIndeterminate = isRunning && percentNum == null
+    if (isIndeterminate !== lastIsIndeterminate) {
+      headerEl.classList.toggle('isIndeterminate', isIndeterminate)
+      lastIsIndeterminate = isIndeterminate
+    }
+
+    const progressDisplay = isRunning || isError ? '' : 'none'
+    if (progressDisplay !== lastProgressDisplay) {
+      progressFillEl.style.display = progressDisplay
+      lastProgressDisplay = progressDisplay
+    }
     const combinedSubtitle =
       allowStatusWithSubtitle && baseSubtitle && !isError
         ? `${statusLabel} · ${baseSubtitle}`
         : statusLabel
-    subtitleEl.textContent = isError
+    const nextSubtitle = isError
       ? statusLabel
       : shouldShowStatus
         ? combinedSubtitle
         : baseSubtitle
+    if (nextSubtitle !== lastSubtitle) {
+      subtitleEl.textContent = nextSubtitle
+      lastSubtitle = nextSubtitle
+    }
+  }
+
+  const updateHeader = () => {
+    if (rafId != null) return
+    rafId = window.requestAnimationFrame(() => {
+      rafId = null
+      renderHeader()
+    })
   }
 
   const updateHeaderOffset = () => {
