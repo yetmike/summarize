@@ -289,6 +289,18 @@ async function getBackground(harness: ExtensionHarness): Promise<Worker> {
 
 async function sendBgMessage(harness: ExtensionHarness, message: object) {
   const background = await getBackground(harness)
+  await expect
+    .poll(async () => {
+      return await background.evaluate(() => {
+        const ports = (
+          globalThis as typeof globalThis & {
+            __summarizePanelPorts?: Map<number, { postMessage: (msg: object) => void }>
+          }
+        ).__summarizePanelPorts
+        return Boolean(ports && ports.size > 0)
+      })
+    })
+    .toBe(true)
   await background.evaluate((payload) => {
     const global = globalThis as typeof globalThis & {
       __summarizePanelPorts?: Map<number, { postMessage: (msg: object) => void }>
@@ -363,6 +375,28 @@ async function injectContentScript(harness: ExtensionHarness, file: string, urlP
   }
 }
 
+async function waitForExtractReady(harness: ExtensionHarness, urlPrefix: string, maxChars = 1200) {
+  const background = await getBackground(harness)
+  await expect
+    .poll(async () => {
+      return await background.evaluate(async ({ prefix, limit }) => {
+        const tabs = await chrome.tabs.query({})
+        const target = tabs.find((tab) => tab.url?.startsWith(prefix))
+        if (!target?.id) return false
+        try {
+          const res = (await chrome.tabs.sendMessage(target.id, {
+            type: 'extract',
+            maxChars: limit,
+          })) as { ok?: boolean }
+          return Boolean(res?.ok)
+        } catch {
+          return false
+        }
+      }, { prefix: urlPrefix, limit: maxChars })
+    })
+    .toBe(true)
+}
+
 async function mockDaemonSummarize(harness: ExtensionHarness) {
   const background = await getBackground(harness)
   await background.evaluate(() => {
@@ -372,8 +406,12 @@ async function mockDaemonSummarize(harness: ExtensionHarness) {
     if (typeof globalThis.__summarizeCalls !== 'number') {
       globalThis.__summarizeCalls = 0
     }
+    if (typeof globalThis.__summarizeRunCount !== 'number') {
+      globalThis.__summarizeRunCount = 0
+    }
     globalThis.__summarizeLastBody = null
     globalThis.__summarizeBodies = []
+    globalThis.__summarizeCallTimes = []
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (url === 'http://127.0.0.1:8787/health') {
@@ -384,18 +422,37 @@ async function mockDaemonSummarize(harness: ExtensionHarness) {
       }
       if (url === 'http://127.0.0.1:8787/v1/summarize') {
         globalThis.__summarizeCalls += 1
+        globalThis.__summarizeCallTimes.push(Date.now())
         const body = typeof init?.body === 'string' ? init.body : null
+        let parsed: Record<string, unknown> | null = null
         if (body) {
           try {
-            const parsed = JSON.parse(body)
+            parsed = JSON.parse(body) as Record<string, unknown>
             globalThis.__summarizeLastBody = parsed
             globalThis.__summarizeBodies.push(parsed)
           } catch {
             globalThis.__summarizeLastBody = null
           }
         }
+        if (parsed?.extractOnly) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              extracted: {
+                url: typeof parsed.url === 'string' ? parsed.url : '',
+                title: typeof parsed.title === 'string' ? parsed.title : null,
+                content: 'Transcript text from extract-only request.',
+                truncated: false,
+                mediaDurationSeconds: 120,
+                transcriptTimedText: null,
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+        }
+        globalThis.__summarizeRunCount += 1
         return new Response(
-          JSON.stringify({ ok: true, id: `run-${globalThis.__summarizeCalls}` }),
+          JSON.stringify({ ok: true, id: `run-${globalThis.__summarizeRunCount}` }),
           {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -412,6 +469,13 @@ async function getSummarizeCalls(harness: ExtensionHarness) {
     harness.context.serviceWorkers()[0] ??
     (await harness.context.waitForEvent('serviceworker', { timeout: 15_000 }))
   return background.evaluate(() => (globalThis.__summarizeCalls as number | undefined) ?? 0)
+}
+
+async function getSummarizeCallTimes(harness: ExtensionHarness) {
+  const background =
+    harness.context.serviceWorkers()[0] ??
+    (await harness.context.waitForEvent('serviceworker', { timeout: 15_000 }))
+  return background.evaluate(() => (globalThis.__summarizeCallTimes as number[] | undefined) ?? [])
 }
 
 async function getSummarizeLastBody(harness: ExtensionHarness) {
@@ -437,6 +501,20 @@ async function seedSettings(harness: ExtensionHarness, settings: Record<string, 
       chrome.storage.local.set({ settings: payload }, () => resolve())
     })
   }, settings)
+}
+
+async function updateSettings(page: Page, patch: Record<string, unknown>) {
+  await page.evaluate(async (nextSettings) => {
+    const current = await new Promise<Record<string, unknown>>((resolve) => {
+      chrome.storage.local.get('settings', (result) => {
+        resolve((result?.settings as Record<string, unknown>) ?? {})
+      })
+    })
+    const merged = { ...current, ...nextSettings }
+    await new Promise<void>((resolve) => {
+      chrome.storage.local.set({ settings: merged }, () => resolve())
+    })
+  }, patch)
 }
 
 async function getSettings(harness: ExtensionHarness) {
@@ -877,6 +955,36 @@ async function getPanelSlideDescriptions(page: Page): Promise<Array<[number, str
   })
 }
 
+function buildSlidesPayload({
+  sourceUrl,
+  sourceId,
+  count,
+  textPrefix,
+  sourceKind = 'youtube',
+}: {
+  sourceUrl: string
+  sourceId: string
+  count: number
+  textPrefix: string
+  sourceKind?: string
+}) {
+  return {
+    sourceUrl,
+    sourceId,
+    sourceKind,
+    ocrAvailable: true,
+    slides: Array.from({ length: count }, (_, index) => {
+      const slideIndex = index + 1
+      return {
+        index: slideIndex,
+        timestamp: index * 10,
+        imageUrl: `http://127.0.0.1:8787/v1/slides/${sourceId}/${slideIndex}?v=1`,
+        ocrText: `${textPrefix} slide ${slideIndex} has enough OCR text to pass thresholds.`,
+      }
+    }),
+  }
+}
+
 test('sidepanel loads without runtime errors', async ({ browserName: _browserName }, testInfo) => {
   const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
 
@@ -930,7 +1038,7 @@ test('sidepanel updates chat visibility when settings change', async ({
     })
     await expect(page.locator('#chatDock')).toBeVisible()
 
-    await seedSettings(harness, { chatEnabled: false })
+    await updateSettings(page, { chatEnabled: false })
     await expect(page.locator('#chatDock')).toBeHidden()
     await expect(page.locator('#chatContainer')).toBeHidden()
     assertNoErrors(harness)
@@ -1188,7 +1296,7 @@ test('sidepanel updates title after stream when tab title changes', async ({
 
   try {
     await mockDaemonSummarize(harness)
-    await seedSettings(harness, { token: 'test-token' })
+    await seedSettings(harness, { token: 'test-token', autoSummarize: false })
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
     const sseBody = [
       'event: meta',
@@ -1249,46 +1357,30 @@ test('sidepanel clears summary when tab url changes', async ({
 
   try {
     await mockDaemonSummarize(harness)
-    await seedSettings(harness, { token: 'test-token' })
+    await seedSettings(harness, { token: 'test-token', autoSummarize: false })
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
-    const sseBody = [
-      'event: chunk',
-      'data: {"text":"Hello world"}',
-      '',
-      'event: done',
-      'data: {}',
-      '',
-    ].join('\n')
-    await page.route('http://127.0.0.1:8787/v1/summarize/**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: { 'content-type': 'text/event-stream' },
-        body: sseBody,
-      })
-    })
 
     await sendBgMessage(harness, {
-      type: 'run:start',
-      run: {
-        id: 'run-2',
-        url: 'https://example.com/old',
-        title: 'Old Title',
-        model: 'auto',
-        reason: 'manual',
-      },
+      type: 'ui:state',
+      state: buildUiState({
+        tab: { url: 'https://example.com/old', title: 'Old Title' },
+        settings: { autoSummarize: false, tokenPresent: true },
+        status: '',
+      }),
     })
 
     await expect(page.locator('#title')).toHaveText('Old Title')
     await page.evaluate(() => {
-      const render = document.getElementById('render')
-      if (render) render.innerHTML = '<p>Hello world</p>'
+      const host = document.querySelector('.render__markdownHost') as HTMLElement | null
+      if (host) host.textContent = 'Hello world'
     })
-    await expect(page.locator('#render')).toContainText('Hello world')
+    await expect(page.locator('.render__markdownHost')).toContainText('Hello world')
 
     await sendBgMessage(harness, {
       type: 'ui:state',
       state: buildUiState({
         tab: { url: 'https://example.com/new', title: 'New Title' },
+        settings: { autoSummarize: false },
         status: '',
       }),
     })
@@ -1301,7 +1393,7 @@ test('sidepanel clears summary when tab url changes', async ({
   }
 })
 
-test('sidepanel restores cached state when switching tabs', async ({
+test('sidepanel restores cached state when switching YouTube tabs', async ({
   browserName: _browserName,
 }, testInfo) => {
   const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
@@ -1353,7 +1445,7 @@ test('sidepanel restores cached state when switching tabs', async ({
     })
 
     const tabAState = buildUiState({
-      tab: { id: 1, url: 'https://example.com/a', title: 'Alpha Tab' },
+      tab: { id: 1, url: 'https://www.youtube.com/watch?v=alpha123', title: 'Alpha Tab' },
       settings: {
         autoSummarize: false,
         slidesEnabled: true,
@@ -1367,7 +1459,7 @@ test('sidepanel restores cached state when switching tabs', async ({
       type: 'run:start',
       run: {
         id: 'run-a',
-        url: 'https://example.com/a',
+        url: 'https://www.youtube.com/watch?v=alpha123',
         title: 'Alpha Tab',
         model: 'auto',
         reason: 'manual',
@@ -1388,7 +1480,7 @@ test('sidepanel restores cached state when switching tabs', async ({
       { timeout: 5_000 }
     )
     const slidesPayloadA = {
-      sourceUrl: 'https://example.com/a',
+      sourceUrl: 'https://www.youtube.com/watch?v=alpha123',
       sourceId: 'alpha',
       sourceKind: 'url',
       ocrAvailable: true,
@@ -1420,7 +1512,7 @@ test('sidepanel restores cached state when switching tabs', async ({
     expect(slidesA[0]?.[1] ?? '').toContain('Alpha')
 
     const tabBState = buildUiState({
-      tab: { id: 2, url: 'https://example.com/b', title: 'Bravo Tab' },
+      tab: { id: 2, url: 'https://www.youtube.com/watch?v=bravo456', title: 'Bravo Tab' },
       settings: {
         autoSummarize: false,
         slidesEnabled: true,
@@ -1435,7 +1527,7 @@ test('sidepanel restores cached state when switching tabs', async ({
       type: 'run:start',
       run: {
         id: 'run-b',
-        url: 'https://example.com/b',
+        url: 'https://www.youtube.com/watch?v=bravo456',
         title: 'Bravo Tab',
         model: 'auto',
         reason: 'manual',
@@ -1444,7 +1536,7 @@ test('sidepanel restores cached state when switching tabs', async ({
     await expect(page.locator('#render')).toContainText('Summary B')
 
     const slidesPayloadB = {
-      sourceUrl: 'https://example.com/b',
+      sourceUrl: 'https://www.youtube.com/watch?v=bravo456',
       sourceId: 'bravo',
       sourceKind: 'url',
       ocrAvailable: true,
@@ -1475,6 +1567,109 @@ test('sidepanel restores cached state when switching tabs', async ({
     const restoredSlides = await getPanelSlideDescriptions(page)
     expect(restoredSlides[0]?.[1] ?? '').toContain('Alpha')
     expect(restoredSlides.some((entry) => entry[1].includes('Bravo'))).toBe(false)
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
+test('sidepanel auto summarizes quickly when switching YouTube tabs', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
+
+  try {
+    await mockDaemonSummarize(harness)
+    await seedSettings(harness, { token: 'test-token', autoSummarize: true, slidesEnabled: false })
+    await harness.context.route('https://www.youtube.com/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+        body: '<html><body><article>YouTube placeholder</article></body></html>',
+      })
+    })
+
+    const videoA = 'https://www.youtube.com/watch?v=videoA12345'
+    const videoB = 'https://www.youtube.com/watch?v=videoB67890'
+
+    const pageA = await harness.context.newPage()
+    await pageA.goto(videoA, { waitUntil: 'domcontentloaded' })
+    const pageB = await harness.context.newPage()
+    await pageB.goto(videoB, { waitUntil: 'domcontentloaded' })
+
+    await activateTabByUrl(harness, videoA)
+    await waitForActiveTabUrl(harness, videoA)
+    await injectContentScript(harness, 'content-scripts/extract.js', videoA)
+    await injectContentScript(harness, 'content-scripts/extract.js', videoB)
+
+    const panel = await openExtensionPage(harness, 'sidepanel.html', '#title')
+    await waitForPanelPort(panel)
+    await maybeBringToFront(pageA)
+    await activateTabByUrl(harness, videoA)
+    await waitForActiveTabUrl(harness, videoA)
+    await mockDaemonSummarize(harness)
+
+    const sseBody = (text: string) =>
+      ['event: chunk', `data: ${JSON.stringify({ text })}`, '', 'event: done', 'data: {}', ''].join(
+        '\n'
+      )
+    await panel.route('http://127.0.0.1:8787/v1/summarize/**/events', async (route) => {
+      const url = route.request().url()
+      const match = url.match(/summarize\/([^/]+)\/events/)
+      const runId = match ? (match[1] ?? '') : ''
+      const runIndex = Number.parseInt(runId.replace('run-', ''), 10)
+      const summaryText = runIndex % 2 === 1 ? 'Video A summary' : 'Video B summary'
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: sseBody(summaryText),
+      })
+    })
+
+    const waitForSummarizeCall = async (sinceCount: number, startedAt: number) => {
+      await expect
+        .poll(async () => await getSummarizeCalls(harness), { timeout: 5_000 })
+        .toBeGreaterThan(sinceCount)
+      const callTimes = await getSummarizeCallTimes(harness)
+      const callTime = callTimes[sinceCount] ?? callTimes.at(-1) ?? Date.now()
+      expect(callTime - startedAt).toBeLessThan(4_000)
+    }
+
+    const callsBeforeReady = await getSummarizeCalls(harness)
+    const startA = Date.now()
+    await sendPanelMessage(panel, { type: 'panel:ready' })
+    await waitForSummarizeCall(callsBeforeReady, startA)
+    await expect
+      .poll(async () => {
+        const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>
+        return bodies.some((body) => body?.url === videoA)
+      })
+      .toBe(true)
+
+    const callsBeforeB = await getSummarizeCalls(harness)
+    const startB = Date.now()
+    await activateTabByUrl(harness, videoB)
+    await waitForActiveTabUrl(harness, videoB)
+    await waitForSummarizeCall(callsBeforeB, startB)
+    await expect
+      .poll(async () => {
+        const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>
+        return bodies.some((body) => body?.url === videoB)
+      })
+      .toBe(true)
+
+    const callsBeforeReturn = await getSummarizeCalls(harness)
+    const startA2 = Date.now()
+    await activateTabByUrl(harness, videoA)
+    await waitForActiveTabUrl(harness, videoA)
+
+    const callsAfterReturn = await getSummarizeCalls(harness)
+    if (callsAfterReturn > callsBeforeReturn) {
+      const callTimes = await getSummarizeCallTimes(harness)
+      const callTime = callTimes[callsAfterReturn - 1] ?? callTimes.at(-1) ?? Date.now()
+      expect(callTime - startA2).toBeLessThan(4_000)
+    }
 
     assertNoErrors(harness)
   } finally {
@@ -1959,6 +2154,129 @@ test('sidepanel switches between page, video, and slides modes', async ({
   }
 })
 
+test('sidepanel scrolls YouTube slides and shows text for each slide', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
+
+  try {
+    await seedSettings(harness, {
+      token: 'test-token',
+      autoSummarize: false,
+      slidesEnabled: true,
+      slidesLayout: 'gallery',
+      slidesOcrEnabled: true,
+    })
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title', () => {
+      ;(
+        window as typeof globalThis & { __summarizeTestHooks?: Record<string, unknown> }
+      ).__summarizeTestHooks = {}
+    })
+    await waitForPanelPort(page)
+
+    const placeholderPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3kq0cAAAAASUVORK5CYII=',
+      'base64'
+    )
+    await page.route('http://127.0.0.1:8787/v1/slides/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'content-type': 'image/png',
+          'x-summarize-slide-ready': '1',
+        },
+        body: placeholderPng,
+      })
+    })
+
+    const sourceUrl = 'https://www.youtube.com/watch?v=scrollTest123'
+    const uiState = buildUiState({
+      tab: { id: 1, url: sourceUrl, title: 'Scroll Test' },
+      media: { hasVideo: true, hasAudio: true, hasCaptions: false },
+      stats: { pageWords: 120, videoDurationSeconds: 600 },
+      settings: {
+        autoSummarize: false,
+        slidesEnabled: true,
+        slidesOcrEnabled: true,
+        slidesLayout: 'gallery',
+        tokenPresent: true,
+      },
+      status: '',
+    })
+    await sendBgMessage(harness, { type: 'ui:state', state: uiState })
+
+    await page.waitForFunction(
+      () => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+          }
+        ).__summarizeTestHooks
+        return Boolean(hooks?.applySlidesPayload)
+      },
+      null,
+      { timeout: 5_000 }
+    )
+
+    const slidesPayload = buildSlidesPayload({
+      sourceUrl,
+      sourceId: 'yt-scroll',
+      count: 12,
+      textPrefix: 'YouTube',
+    })
+    await page.evaluate((payload) => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+        }
+      ).__summarizeTestHooks
+      hooks?.applySlidesPayload?.(payload)
+    }, slidesPayload)
+
+    await expect.poll(async () => (await getPanelSlideDescriptions(page)).length).toBe(12)
+    const renderedCount = await page.evaluate(() => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { forceRenderSlides?: () => number }
+        }
+      ).__summarizeTestHooks
+      return hooks?.forceRenderSlides?.() ?? 0
+    })
+    expect(renderedCount).toBeGreaterThan(0)
+
+    const slideItems = page.locator('.slideGallery__item')
+    await expect(slideItems).toHaveCount(12)
+
+    for (let index = 0; index < 12; index += 1) {
+      const item = slideItems.nth(index)
+      await item.scrollIntoViewIfNeeded()
+      await expect(item).toBeVisible()
+
+      const img = item.locator('img.slideInline__thumbImage')
+      await expect(img).toBeVisible()
+      await expect
+        .poll(
+          async () => (await img.evaluate((node) => node.dataset.slideImageUrl ?? '')).trim(),
+          { timeout: 10_000 }
+        )
+        .not.toBe('')
+
+      const text = item.locator('.slideGallery__text')
+      await expect
+        .poll(async () => (await text.textContent())?.trim() ?? '', { timeout: 10_000 })
+        .not.toBe('')
+    }
+
+    const slideDescriptions = await getPanelSlideDescriptions(page)
+    expect(slideDescriptions).toHaveLength(12)
+    expect(slideDescriptions.every(([, text]) => text.trim().length > 0)).toBe(true)
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
 test('sidepanel video selection forces transcript mode', async ({
   browserName: _browserName,
 }, testInfo) => {
@@ -2148,6 +2466,7 @@ test('sidepanel video selection does not request slides when disabled', async ({
     await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+    await waitForExtractReady(harness, 'https://example.com')
 
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title', () => {
       ;(window as typeof globalThis & { IntersectionObserver?: unknown }).IntersectionObserver =
@@ -2822,6 +3141,7 @@ test('sidepanel shows an error when agent request fails', async ({
     await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+    await waitForExtractReady(harness, 'https://example.com')
 
     let agentCalls = 0
     await harness.context.route('http://127.0.0.1:8787/v1/agent', async (route) => {
@@ -2924,6 +3244,7 @@ test('sidepanel shows daemon upgrade hint when /v1/agent is missing', async ({
     await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+    await waitForExtractReady(harness, 'https://example.com')
 
     let agentCalls = 0
     await harness.context.route('http://127.0.0.1:8787/v1/agent', async (route) => {
@@ -3007,6 +3328,7 @@ test('sidepanel chat queue sends next message after stream completes', async ({
     await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+    await waitForExtractReady(harness, 'https://example.com')
 
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
 
@@ -3073,6 +3395,7 @@ test('sidepanel chat queue drains messages after stream completes', async ({
     await activateTabByUrl(harness, 'https://example.com')
     await waitForActiveTabUrl(harness, 'https://example.com')
     await injectContentScript(harness, 'content-scripts/extract.js', 'https://example.com')
+    await waitForExtractReady(harness, 'https://example.com')
 
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
 
