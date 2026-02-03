@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { buildDaemonHelp } from '../run/help.js'
+import { resolveCliEntrypointPathForService } from './cli-entrypoint.js'
 import { readDaemonConfig, writeDaemonConfig } from './config.js'
 import { DAEMON_HOST, DAEMON_PORT_DEFAULT } from './constants.js'
 import { mergeDaemonEnv } from './env-merge.js'
@@ -233,38 +234,6 @@ async function checkAuthWithRetries({
     }
   }
   return false
-}
-
-async function resolveCliEntrypointPathForService(): Promise<string> {
-  const argv1 = process.argv[1]
-  if (!argv1) throw new Error('Unable to resolve CLI entrypoint path')
-
-  // Resolve symlinks so that globally-installed bins (npm, bun, nvm, etc.)
-  // point back to the real package directory instead of the symlink location.
-  const normalized = await fs.realpath(path.resolve(argv1))
-  const looksLikeDist = /[/\\]dist[/\\].+\.(cjs|js)$/.test(normalized)
-  if (looksLikeDist) {
-    await fs.access(normalized)
-    return normalized
-  }
-
-  const distCandidates = [
-    path.resolve(path.dirname(normalized), '../dist/cli.cjs'),
-    path.resolve(path.dirname(normalized), '../dist/cli.js'),
-  ]
-
-  for (const candidate of distCandidates) {
-    try {
-      await fs.access(candidate)
-      return candidate
-    } catch {
-      // keep going
-    }
-  }
-
-  throw new Error(
-    `Cannot find built CLI at ${distCandidates.join(' or ')}. Run "pnpm build:cli" (or "pnpm build") first, or pass --dev to install a dev daemon.`
-  )
 }
 
 function resolveRepoRootForDev(): string {
