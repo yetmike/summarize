@@ -77,6 +77,33 @@ describe('Transcript→Markdown converter', async () => {
     expect(args.prompt.userText).toContain('Source: unknown')
   })
 
+  it('includes output language instructions when provided', async () => {
+    generateTextWithModelIdMock.mockClear()
+
+    const converter = createTranscriptToMarkdownConverter({
+      modelId: 'openai/gpt-5.2',
+      xaiApiKey: null,
+      googleApiKey: null,
+      openaiApiKey: 'test',
+      anthropicApiKey: null,
+      openrouterApiKey: null,
+      fetchImpl: globalThis.fetch.bind(globalThis),
+    })
+
+    await converter({
+      title: 'Test',
+      source: 'YouTube',
+      transcript: 'Bonjour le monde.',
+      timeoutMs: 2000,
+      outputLanguage: { kind: 'fixed', tag: 'fr', label: 'French' },
+    })
+
+    const args = generateTextWithModelIdMock.mock.calls[0]?.[0] as {
+      prompt: { system?: string }
+    }
+    expect(args.prompt.system).toContain('Write the answer in French.')
+  })
+
   it('truncates very large transcript inputs', async () => {
     generateTextWithModelIdMock.mockClear()
 
