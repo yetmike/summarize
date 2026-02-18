@@ -203,7 +203,7 @@ phase_tap() {
     "${url_linux_x64}"    "${sha_linux_x64}" \
     "${url_linux_arm64}"  "${sha_linux_arm64}" \
     <<'PY'
-import re, sys
+import sys
 from pathlib import Path
 
 (path,
@@ -211,29 +211,36 @@ from pathlib import Path
  url_linux_x64,    sha_linux_x64,
  url_linux_arm64,  sha_linux_arm64) = sys.argv[1:]
 
-formula = f'''class Summarize < Formula
+def platform_block(outer, inner, url, sha):
+    """Return an on_<outer> { on_<inner> } block, or '' if sha is missing."""
+    if not sha:
+        return ""
+    return f"""
+  on_{outer} do
+    on_{inner} do
+      url "{url}"
+      sha256 "{sha}"
+    end
+  end
+"""
+
+macos_block  = platform_block("macos", "arm",   url_macos_arm64,  sha_macos_arm64)
+linux_x64    = platform_block("linux", "intel", url_linux_x64,    sha_linux_x64)
+linux_arm64  = platform_block("linux", "arm",   url_linux_arm64,  sha_linux_arm64)
+
+# Merge both linux blocks under a single on_linux do...end wrapper.
+if linux_x64 or linux_arm64:
+    intel_inner = f"    on_intel do\n      url \"{url_linux_x64}\"\n      sha256 \"{sha_linux_x64}\"\n    end\n" if sha_linux_x64 else ""
+    arm_inner   = f"    on_arm do\n      url \"{url_linux_arm64}\"\n      sha256 \"{sha_linux_arm64}\"\n    end\n" if sha_linux_arm64 else ""
+    linux_block = f"\n  on_linux do\n{intel_inner}{arm_inner}  end\n"
+else:
+    linux_block = ""
+
+formula = f"""class Summarize < Formula
   desc "Link → clean text → summary"
   homepage "https://github.com/steipete/summarize"
   license "MIT"
-
-  on_macos do
-    on_arm do
-      url "{url_macos_arm64}"
-      sha256 "{sha_macos_arm64}"
-    end
-  end
-
-  on_linux do
-    on_intel do
-      url "{url_linux_x64}"
-      sha256 "{sha_linux_x64}"
-    end
-    on_arm do
-      url "{url_linux_arm64}"
-      sha256 "{sha_linux_arm64}"
-    end
-  end
-
+{macos_block}{linux_block}
   def install
     bin.install "summarize"
   end
@@ -247,7 +254,7 @@ formula = f'''class Summarize < Formula
     assert_match "Summarize web pages", shell_output("#{{bin}}/summarize --help")
   end
 end
-'''
+"""
 Path(path).write_text(formula)
 PY
 
