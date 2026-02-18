@@ -3,10 +3,11 @@
 Ship is **not done** until:
 
 - npm is published
-- GitHub Release has the Bun tarball asset
+- GitHub Release has the Bun tarball asset (macOS arm64 — built locally)
+- GitHub Release has the Linux x64 + arm64 tarballs (built automatically by CI on tag push)
 - GitHub Release has the Chrome extension zip
 - GitHub Release has the Firefox extension zip
-- Homebrew tap is bumped + `brew install` verifies
+- Homebrew tap is bumped + `brew install` verifies (macOS + Linux)
 
 ## Version sources (keep in sync)
 
@@ -35,6 +36,8 @@ Ship is **not done** until:
 3. Build Bun artifact (prints sha256 + creates tarball)
    - `pnpm -s build:bun:test`
    - Artifact: `dist-bun/summarize-macos-arm64-v<ver>.tar.gz`
+   - Linux tarballs (`linux-x64`, `linux-arm64`) are built automatically by CI
+     when the tag is pushed in step 6 and uploaded to the same release.
 
 4. Build Chrome extension artifact
    - `pnpm -C apps/chrome-extension build`
@@ -84,11 +87,17 @@ Ship is **not done** until:
 
 8. Homebrew tap bump + verify
    - Repo: `~/Projects/homebrew-tap`
-   - Update `Formula/summarize.rb`:
-     - `url` → GitHub Release asset URL
-     - `sha256` → from `pnpm build:bun:test`
-     - `version` + test expectation
-   - `git commit -am "chore: bump summarize to <ver>" && git push`
+   - Run the helper (downloads all platform tarballs, computes sha256s, rewrites the formula):
+     ```bash
+     bash scripts/release.sh tap
+     ```
+   - The formula uses `on_macos`/`on_linux` blocks covering arm64 + linux-x64 + linux-arm64.
+   - Commit and push:
+     ```bash
+     ver="$(node -p 'require("./package.json").version')"
+     git -C ~/Projects/homebrew-tap commit -am "chore: bump summarize to v${ver}" && \
+       git -C ~/Projects/homebrew-tap push
+     ```
    - Verify:
      ```bash
      brew uninstall summarize || true
@@ -128,11 +137,24 @@ Helper (npm-only): `scripts/release.sh` (phases: `gates|build|publish|smoke|tag|
 
 Goal:
 
-- Build a **macOS arm64** Bun binary named `summarize`
-- Package as `dist-bun/summarize-macos-arm64-v<ver>.tar.gz`
-- Upload tarball as a GitHub Release asset
-- Point Homebrew formula at that asset + sha256
+- Build platform-native Bun binaries named `summarize` for each supported platform
+- Package as `dist-bun/summarize-<platform>-v<ver>.tar.gz`
+- Supported platforms: `macos-arm64` (built locally), `linux-x64` and `linux-arm64` (built by CI)
+- Upload tarballs as GitHub Release assets
+- Point Homebrew formula `on_macos`/`on_linux` blocks at the correct asset + sha256
 - Formula should install the compiled `summarize` binary directly (no Bun wrapper script).
+
+### Building Linux binaries locally (optional, for testing)
+
+```bash
+# On a Linux x64 machine:
+pnpm build:bun:test
+# Artifact: dist-bun/summarize-linux-x64-v<ver>.tar.gz
+
+# Cross-compile from any host:
+bun scripts/build-bun.js --platform linux-x64
+bun scripts/build-bun.js --platform linux-arm64
+```
 
 1. Build the Bun artifact
    - `pnpm build:bun`
