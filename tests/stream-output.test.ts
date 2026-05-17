@@ -119,6 +119,146 @@ describe("createStreamOutputGate", () => {
     expect(stdout.chunks).toEqual(["あい.", "\r\u001b[2K\u001b[1A\r\u001b[2Kあい!", "\n"]);
   });
 
+  it("counts emoji grapheme clusters when rewinding wrapped corrections", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 3;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("🇺🇸.", "");
+    gate.handleChunk("🇺🇸!", "🇺🇸.");
+    gate.finalize("🇺🇸!");
+
+    expect(stdout.chunks).toEqual(["🇺🇸.", "\r\u001b[2K🇺🇸!", "\n"]);
+  });
+
+  it("counts skin-tone emoji graphemes when rewinding wrapped corrections", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("✌🏽.", "");
+    gate.handleChunk("✌🏽!", "✌🏽.");
+    gate.finalize("✌🏽!");
+
+    expect(stdout.chunks).toEqual(["✌🏽.", "\r\u001b[2K\u001b[1A\r\u001b[2K✌🏽!", "\n"]);
+  });
+
+  it("keeps bare text-default hand symbols as single-cell rewrites", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("✌.", "");
+    gate.handleChunk("✌!", "✌.");
+    gate.finalize("✌!");
+
+    expect(stdout.chunks).toEqual(["✌.", "\r\u001b[2K✌!", "\n"]);
+  });
+
+  it("counts standalone skin-tone modifiers as visible rewrites", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("🏽.", "");
+    gate.handleChunk("🏽!", "🏽.");
+    gate.finalize("🏽!");
+
+    expect(stdout.chunks).toEqual(["🏽.", "\r\u001b[2K\u001b[1A\r\u001b[2K🏽!", "\n"]);
+  });
+
+  it("keeps text-presentation symbols as single-cell rewrites", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("✓.", "");
+    gate.handleChunk("✓!", "✓.");
+    gate.finalize("✓!");
+
+    expect(stdout.chunks).toEqual(["✓.", "\r\u001b[2K✓!", "\n"]);
+  });
+
+  it("keeps lone regional indicators as single-cell rewrites", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("🇺.", "");
+    gate.handleChunk("🇺!", "🇺.");
+    gate.finalize("🇺!");
+
+    expect(stdout.chunks).toEqual(["🇺.", "\r\u001b[2K🇺!", "\n"]);
+  });
+
+  it("preserves halfwidth spacing mark width in grapheme rewrites", () => {
+    const stdout = collectChunks();
+    (stdout.stream as unknown as { columns: number }).columns = 2;
+    const gate = createStreamOutputGate({
+      stdout: stdout.stream,
+      clearProgressForStdout: vi.fn(),
+      restoreProgressAfterStdout: null,
+      outputMode: "delta",
+      richTty: false,
+      rewriteOnReplacement: true,
+      restoreDuringStream: false,
+    });
+
+    gate.handleChunk("ｶﾞ.", "");
+    gate.handleChunk("ｶﾞ!", "ｶﾞ.");
+    gate.finalize("ｶﾞ!");
+
+    expect(stdout.chunks).toEqual(["ｶﾞ.", "\r\u001b[2K\u001b[1A\r\u001b[2Kｶﾞ!", "\n"]);
+  });
+
   it("suppresses unsafe rewrites after output has scrolled beyond the viewport", () => {
     const stdout = collectChunks();
     const stream = stdout.stream as unknown as { columns: number; rows: number };
