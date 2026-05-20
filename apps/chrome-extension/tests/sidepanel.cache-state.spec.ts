@@ -98,6 +98,7 @@ test("sidepanel restores cached state when switching YouTube tabs", async ({
         title: "Alpha Tab",
         model: "auto",
         reason: "manual",
+        slides: false,
       },
     });
     await expect(page.locator("#render")).toContainText("Summary A");
@@ -166,6 +167,7 @@ test("sidepanel restores cached state when switching YouTube tabs", async ({
         title: "Bravo Tab",
         model: "auto",
         reason: "manual",
+        slides: false,
       },
     });
     await expect(page.locator("#render")).toContainText("Summary B");
@@ -279,6 +281,7 @@ test("sidepanel clears cached slides when switching from a cached YouTube video 
         title: "Alpha Tab",
         model: "auto",
         reason: "manual",
+        slides: false,
       },
     });
     await expect(page.locator("#render")).toContainText("Summary A");

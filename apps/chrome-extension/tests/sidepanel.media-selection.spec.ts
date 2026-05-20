@@ -95,14 +95,14 @@ test("sidepanel video selection forces transcript mode", async ({
     await expect
       .poll(async () => {
         const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>;
-        return bodies.some((body) => body?.videoMode === "transcript");
+        return bodies.some((body) => body?.mode === "url" && !("videoMode" in body));
       })
       .toBe(true);
 
     const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>;
-    const body = bodies.find((item) => item?.videoMode === "transcript") ?? null;
+    const body = bodies.find((item) => item?.mode === "url" && !("videoMode" in item)) ?? null;
     expect(body?.mode).toBe("url");
-    expect(body?.videoMode).toBe("transcript");
+    expect(body).not.toHaveProperty("videoMode");
     assertNoErrors(harness);
   } finally {
     await closeExtension(harness.context, harness.userDataDir);
@@ -120,7 +120,6 @@ test("sidepanel video selection requests slides when enabled", async ({
       token: "test-token",
       autoSummarize: false,
       slidesEnabled: true,
-      slidesOcrEnabled: true,
     });
     const contentPage = await harness.context.newPage();
     await contentPage.route("https://www.youtube.com/**", async (route) => {
@@ -182,17 +181,21 @@ test("sidepanel video selection requests slides when enabled", async ({
     await expect
       .poll(async () => {
         const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>;
-        return bodies.some((body) => body?.videoMode === "transcript" && body?.slides === true);
+        return bodies.some(
+          (body) => body?.mode === "url" && body?.slides === true && !("videoMode" in body),
+        );
       })
       .toBe(true);
 
     const bodies = (await getSummarizeBodies(harness)) as Array<Record<string, unknown>>;
     const body =
-      bodies.find((item) => item?.videoMode === "transcript" && item?.slides === true) ?? null;
+      bodies.find(
+        (item) => item?.mode === "url" && item?.slides === true && !("videoMode" in item),
+      ) ?? null;
     expect(body?.mode).toBe("url");
-    expect(body?.videoMode).toBe("transcript");
+    expect(body).not.toHaveProperty("videoMode");
     expect(body?.slides).toBe(true);
-    expect(body?.slidesOcr).toBe(true);
+    expect(body?.slidesOcr).toBeUndefined();
     expect(body).not.toHaveProperty("slidesMax");
     expect(body).not.toHaveProperty("slidesMinDuration");
     assertNoErrors(harness);
