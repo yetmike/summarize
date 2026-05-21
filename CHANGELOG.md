@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.1 - 2026-05-21
+
+### Fixes
+
+- Packaging: publish the CLI with a resolved `@steipete/summarize-core` dependency after `0.16.0` was published with workspace metadata.
+
 ## 0.16.0 - 2026-05-21
 
 ### Features
