@@ -114,7 +114,9 @@ export function prependCliCandidates({
                 ? cli?.opencode?.model
                 : provider === "copilot"
                   ? cli?.copilot?.model
-                  : cli?.claude?.model;
+                  : provider === "agy"
+                    ? cli?.agy?.model
+                    : cli?.claude?.model;
     add(provider, modelOverride);
   }
 

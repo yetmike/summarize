@@ -1,0 +1,136 @@
+import { describe, expect, it } from "vitest";
+import { resolveCliBinary, runCliModel } from "../src/llm/cli.js";
+import type { ExecFileFn } from "../src/markitdown.js";
+
+const makeStub = (handler: (args: string[], input?: string) => { stdout?: string; stderr?: string }) => {
+  const execFileStub: ExecFileFn = ((_cmd, args, _options, cb) => {
+    const result = handler(args);
+    if (cb) cb(null, result.stdout ?? "", result.stderr ?? "");
+    return {
+      stdin: { write: (_chunk: unknown) => {}, end: () => {} },
+    } as unknown as ReturnType<ExecFileFn>;
+  }) as ExecFileFn;
+  return execFileStub;
+};
+
+describe("runCliModel - agy provider", () => {
+  it("invokes agy with --print, passes prompt via stdin, returns plain text", async () => {
+    let seenCmd = "";
+    let seenInput = "";
+    const seen: string[][] = [];
+    const execFileImpl: ExecFileFn = ((cmd, args, _options, cb) => {
+      seenCmd = String(cmd);
+      seen.push(args);
+      cb?.(null, "  Hello from agy.  \n", "");
+      return {
+        stdin: {
+          write: (chunk: unknown) => { seenInput += String(chunk); },
+          end: () => {},
+        },
+      } as unknown as ReturnType<ExecFileFn>;
+    }) as ExecFileFn;
+
+    const result = await runCliModel({
+      provider: "agy",
+      prompt: "Summarize this.",
+      model: null,
+      allowTools: false,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: null,
+    });
+
+    expect(result.text).toBe("Hello from agy.");
+    expect(result.usage).toBeNull();
+    expect(result.costUsd).toBeNull();
+    expect(seenCmd).toBe("agy");
+    expect(seen[0]).toContain("--print");
+    expect(seen[0]).not.toContain("--output-format");
+    expect(seenInput).toContain("Summarize this.");
+  });
+
+  it("passes --model when model is specified", async () => {
+    const seen: string[][] = [];
+    const execFileImpl = makeStub((args) => {
+      seen.push(args);
+      return { stdout: "answer text" };
+    });
+
+    const result = await runCliModel({
+      provider: "agy",
+      prompt: "Q?",
+      model: "Gemini 3.5 Flash (Medium)",
+      allowTools: false,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: null,
+    });
+
+    expect(result.text).toBe("answer text");
+    expect(seen[0]).toContain("--print");
+    expect(seen[0]).toContain("--model");
+    expect(seen[0]).toContain("Gemini 3.5 Flash (Medium)");
+  });
+
+  it("passes --dangerously-skip-permissions when allowTools is true", async () => {
+    const seen: string[][] = [];
+    const execFileImpl = makeStub((args) => {
+      seen.push(args);
+      return { stdout: "ok" };
+    });
+
+    await runCliModel({
+      provider: "agy",
+      prompt: "Q",
+      model: null,
+      allowTools: true,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: null,
+    });
+
+    expect(seen[0]).toContain("--dangerously-skip-permissions");
+  });
+
+  it("throws when agy returns empty output", async () => {
+    const execFileImpl = makeStub(() => ({ stdout: "  \n" }));
+    await expect(
+      runCliModel({
+        provider: "agy",
+        prompt: "Q",
+        model: null,
+        allowTools: false,
+        timeoutMs: 1000,
+        env: {},
+        execFileImpl,
+        config: null,
+      }),
+    ).rejects.toThrow(/empty output/);
+  });
+
+  it("respects AGY_PATH and config-provided binary/extraArgs", async () => {
+    expect(resolveCliBinary("agy", null, { AGY_PATH: "/custom/agy" })).toBe("/custom/agy");
+    expect(resolveCliBinary("agy", { agy: { binary: "/cfg/agy" } }, {})).toBe("/cfg/agy");
+    expect(resolveCliBinary("agy", null, {})).toBe("agy");
+
+    const seen: string[][] = [];
+    const execFileImpl = makeStub((args) => {
+      seen.push(args);
+      return { stdout: "ok" };
+    });
+    await runCliModel({
+      provider: "agy",
+      prompt: "Q",
+      model: null,
+      allowTools: false,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: { agy: { extraArgs: ["--no-color"] } },
+    });
+    expect(seen[0]?.[0]).toBe("--no-color");
+  });
+});

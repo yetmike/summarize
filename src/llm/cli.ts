@@ -23,6 +23,7 @@ const DEFAULT_BINARIES: Record<CliProvider, string> = {
   openclaw: "openclaw",
   opencode: "opencode",
   copilot: "copilot",
+  agy: "agy",
 };
 
 const OPENCLAW_MAX_MESSAGE_ARG_BYTES = 120 * 1024;
@@ -37,6 +38,7 @@ const PROVIDER_PATH_ENV: Record<CliProvider, string> = {
   openclaw: "OPENCLAW_PATH",
   opencode: "OPENCODE_PATH",
   copilot: "COPILOT_PATH",
+  agy: "AGY_PATH",
 };
 
 type RunCliModelOptions = {
@@ -72,6 +74,7 @@ function getCliProviderConfig(
   if (provider === "agent") return config.agent;
   if (provider === "openclaw") return config.openclaw;
   if (provider === "opencode") return config.opencode;
+  if (provider === "agy") return config.agy;
   return config.copilot;
 }
 
@@ -362,6 +365,28 @@ export async function runCliModel({
       cmd: binary,
       args: copilotArgs,
       input: "",
+      timeoutMs,
+      env: effectiveEnv,
+      cwd,
+    });
+    const text = stdout.trim();
+    if (!text) throw new Error("CLI returned empty output");
+    return { text, usage: null, costUsd: null };
+  }
+
+  if (provider === "agy") {
+    const agyArgs: string[] = [...providerExtraArgs, "--print"];
+    if (requestedModel) {
+      agyArgs.push("--model", requestedModel);
+    }
+    if (allowTools) {
+      agyArgs.push("--dangerously-skip-permissions");
+    }
+    const { stdout } = await execCliWithInput({
+      execFileImpl: execFileFn,
+      cmd: binary,
+      args: agyArgs,
+      input: prompt,
       timeoutMs,
       env: effectiveEnv,
       cwd,
