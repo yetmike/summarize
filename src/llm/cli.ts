@@ -11,6 +11,7 @@ const DEFAULT_BINARIES: Record<CliProvider, string> = {
   codex: "codex",
   gemini: "gemini",
   agent: "agent",
+  agy: "agy",
 };
 
 const PROVIDER_PATH_ENV: Record<CliProvider, string> = {
@@ -18,6 +19,7 @@ const PROVIDER_PATH_ENV: Record<CliProvider, string> = {
   codex: "CODEX_PATH",
   gemini: "GEMINI_PATH",
   agent: "AGENT_PATH",
+  agy: "AGY_PATH",
 };
 
 type RunCliModelOptions = {
@@ -58,6 +60,7 @@ function getCliProviderConfig(
   if (provider === "claude") return config.claude;
   if (provider === "codex") return config.codex;
   if (provider === "gemini") return config.gemini;
+  if (provider === "agy") return config.agy;
   return config.agent;
 }
 
@@ -321,7 +324,7 @@ function appendJsonProviderArgs({
   model: string | null;
   prompt: string;
 }): string {
-  if (provider === "claude" || provider === "agent") {
+  if (provider === "claude" || provider === "agent" || provider === "agy") {
     args.push("--print");
   }
   args.push("--output-format", "json");
@@ -334,6 +337,9 @@ function appendJsonProviderArgs({
   if (allowTools) {
     if (provider === "claude") {
       args.push("--tools", "Read", "--dangerously-skip-permissions");
+    }
+    if (provider === "agy") {
+      args.push("--dangerously-skip-permissions");
     }
     if (provider === "gemini") {
       args.push("--yolo");
