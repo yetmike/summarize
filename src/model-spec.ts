@@ -6,6 +6,7 @@ const DEFAULT_CLI_MODELS: Record<CliProvider, string> = {
   codex: "gpt-5.2",
   gemini: "gemini-3-flash-preview",
   agent: "gpt-5.2",
+  agy: "gemini-2.5-flash",
 };
 
 export type FixedModelSpec =
@@ -41,7 +42,7 @@ export type FixedModelSpec =
       llmModelId: null;
       openrouterProviders: null;
       forceOpenRouter: false;
-      requiredEnv: "CLI_CLAUDE" | "CLI_CODEX" | "CLI_GEMINI" | "CLI_AGENT";
+      requiredEnv: "CLI_CLAUDE" | "CLI_CODEX" | "CLI_GEMINI" | "CLI_AGENT" | "CLI_AGY";
       cliProvider: CliProvider;
       cliModel: string | null;
     };
@@ -126,7 +127,8 @@ export function parseRequestedModelId(raw: string): RequestedModel {
       providerRaw !== "claude" &&
       providerRaw !== "codex" &&
       providerRaw !== "gemini" &&
-      providerRaw !== "agent"
+      providerRaw !== "agent" &&
+      providerRaw !== "agy"
     ) {
       throw new Error(`Invalid CLI model id "${trimmed}". Expected cli/<provider>/<model>.`);
     }
@@ -140,7 +142,9 @@ export function parseRequestedModelId(raw: string): RequestedModel {
           ? "CLI_CODEX"
           : cliProvider === "gemini"
             ? "CLI_GEMINI"
-            : "CLI_AGENT";
+            : cliProvider === "agy"
+              ? "CLI_AGY"
+              : "CLI_AGENT";
     const userModelId = `cli/${cliProvider}/${cliModel}`;
     return {
       kind: "fixed",

@@ -192,6 +192,7 @@ const parseCliProvider = (raw: string): CliProvider | null => {
   if (normalized === "gemini") return "gemini";
   if (normalized === "codex") return "codex";
   if (normalized === "agent") return "agent";
+  if (normalized === "agy") return "agy";
   return null;
 };
 

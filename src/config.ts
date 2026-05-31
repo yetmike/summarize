@@ -5,7 +5,7 @@ import { isCliThemeName, listCliThemes } from "./tty/theme.js";
 
 export type AutoRuleKind = "text" | "website" | "youtube" | "image" | "video" | "file";
 export type VideoMode = "auto" | "transcript" | "understand";
-export type CliProvider = "claude" | "codex" | "gemini" | "agent";
+export type CliProvider = "claude" | "codex" | "gemini" | "agent" | "agy";
 export type CliProviderConfig = {
   binary?: string;
   extraArgs?: string[];
@@ -23,6 +23,7 @@ export type CliConfig = {
   codex?: CliProviderConfig;
   gemini?: CliProviderConfig;
   agent?: CliProviderConfig;
+  agy?: CliProviderConfig;
   autoFallback?: CliAutoFallbackConfig;
   magicAuto?: CliAutoFallbackConfig;
   promptOverride?: string;
@@ -310,7 +311,7 @@ function parseAutoRuleKind(value: unknown): AutoRuleKind | null {
 
 function parseCliProvider(value: unknown, path: string): CliProvider {
   const trimmed = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (trimmed === "claude" || trimmed === "codex" || trimmed === "gemini" || trimmed === "agent") {
+  if (trimmed === "claude" || trimmed === "codex" || trimmed === "gemini" || trimmed === "agent" || trimmed === "agy") {
     return trimmed as CliProvider;
   }
   throw new Error(`Invalid config file ${path}: unknown CLI provider "${String(value)}".`);

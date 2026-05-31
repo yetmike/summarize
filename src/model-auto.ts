@@ -46,7 +46,8 @@ export type AutoModelAttempt = {
     | "CLI_CLAUDE"
     | "CLI_CODEX"
     | "CLI_GEMINI"
-    | "CLI_AGENT";
+    | "CLI_AGENT"
+    | "CLI_AGY";
   debug: string;
 };
 
@@ -209,9 +210,10 @@ const DEFAULT_CLI_MODELS: Record<CliProvider, string> = {
   codex: "gpt-5.2",
   gemini: "gemini-3-flash-preview",
   agent: "gpt-5.2",
+  agy: "gemini-2.5-flash",
 };
 
-const DEFAULT_AUTO_CLI_ORDER: CliProvider[] = ["claude", "gemini", "codex", "agent"];
+const DEFAULT_AUTO_CLI_ORDER: CliProvider[] = ["claude", "gemini", "codex", "agent", "agy"];
 
 export type ResolvedCliAutoFallbackConfig = {
   enabled: boolean;
@@ -319,7 +321,9 @@ function requiredEnvForCandidate(modelId: string): AutoModelAttempt["requiredEnv
         ? "CLI_GEMINI"
         : parsed.provider === "agent"
           ? "CLI_AGENT"
-          : "CLI_CLAUDE";
+          : parsed.provider === "agy"
+            ? "CLI_AGY"
+            : "CLI_CLAUDE";
   }
   if (isCandidateOpenRouter(modelId)) return "OPENROUTER_API_KEY";
   const parsed = parseGatewayStyleModelId(normalizeGatewayStyleModelId(modelId));
