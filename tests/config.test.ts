@@ -503,13 +503,13 @@ describe("config loading", () => {
     const { root } = writeJsonConfig({
       cli: {
         enabled: ["agy"],
-        agy: { binary: "/usr/local/bin/agy", model: "Gemini 3.5 Flash (Medium)" },
+        agy: { binary: "/usr/local/bin/agy", extraArgs: ["--sandbox"] },
       },
     });
     expect(loadSummarizeConfig({ env: { HOME: root } }).config).toEqual({
       cli: {
         enabled: ["agy"],
-        agy: { binary: "/usr/local/bin/agy", model: "Gemini 3.5 Flash (Medium)" },
+        agy: { binary: "/usr/local/bin/agy", extraArgs: ["--sandbox"] },
       },
     });
   });

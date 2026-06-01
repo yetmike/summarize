@@ -363,7 +363,7 @@ Summarize can use common coding CLIs as local model backends:
 - `agent` (Cursor Agent CLI) -> `--cli agent` / `--model cli/agent/<model>`
 - `openclaw` -> `--cli openclaw` / `--model cli/openclaw/<model>` or `--model openclaw/<model>`
 - `opencode` -> `--cli opencode` / `--model cli/opencode/<model>` (`--model cli/opencode` uses the OpenCode runtime default)
-- `agy` (Antigravity CLI) -> `--cli agy` / `--model cli/agy/<model>` (uses agy's active session model when no model is specified)
+- `agy` (Antigravity CLI) -> `--cli agy` / `--model cli/agy` (uses agy's active session model; per-call model selection is not supported by agy print mode)
 
 Built-in preset:
 

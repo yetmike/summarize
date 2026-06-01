@@ -461,9 +461,7 @@ describe("daemon/agent", () => {
           tools: [],
           automationEnabled: false,
         }),
-      ).rejects.toThrow(
-        /CLI unavailable: agy/i,
-      );
+      ).rejects.toThrow(/CLI unavailable: agy/i);
     } finally {
       autoSpy.mockRestore();
     }

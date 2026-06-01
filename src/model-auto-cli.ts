@@ -115,7 +115,7 @@ export function prependCliCandidates({
                 : provider === "copilot"
                   ? cli?.copilot?.model
                   : provider === "agy"
-                    ? cli?.agy?.model
+                    ? undefined
                     : cli?.claude?.model;
     add(provider, modelOverride);
   }

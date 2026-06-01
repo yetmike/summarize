@@ -118,7 +118,7 @@ export const DEFAULT_AUTO_CLI_ORDER: CliProvider[] = [
   "opencode",
   "copilot",
   // agy is intentionally excluded from the default auto-fallback order.
-  // Use --cli agy or --model cli/agy/<model> to opt in explicitly.
+  // Use --cli agy or --model cli/agy to opt in explicitly.
 ];
 
 export function parseCliProviderName(raw: string): CliProvider | null {

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { resolveCliBinary, runCliModel } from "../src/llm/cli.js";
 import type { ExecFileFn } from "../src/markitdown.js";
 
-const makeStub = (handler: (args: string[], input?: string) => { stdout?: string; stderr?: string }) => {
+const makeStub = (
+  handler: (args: string[], input?: string) => { stdout?: string; stderr?: string },
+) => {
   const execFileStub: ExecFileFn = ((_cmd, args, _options, cb) => {
     const result = handler(args);
     if (cb) cb(null, result.stdout ?? "", result.stderr ?? "");
@@ -24,7 +26,9 @@ describe("runCliModel - agy provider", () => {
       cb?.(null, "  Hello from agy.  \n", "");
       return {
         stdin: {
-          write: (chunk: unknown) => { seenInput += String(chunk); },
+          write: (chunk: unknown) => {
+            seenInput += String(chunk);
+          },
           end: () => {},
         },
       } as unknown as ReturnType<ExecFileFn>;
@@ -50,7 +54,7 @@ describe("runCliModel - agy provider", () => {
     expect(seenInput).toContain("Summarize this.");
   });
 
-  it("passes --model when model is specified", async () => {
+  it("uses the active agy session model instead of passing --model", async () => {
     const seen: string[][] = [];
     const execFileImpl = makeStub((args) => {
       seen.push(args);
@@ -70,8 +74,8 @@ describe("runCliModel - agy provider", () => {
 
     expect(result.text).toBe("answer text");
     expect(seen[0]).toContain("--print");
-    expect(seen[0]).toContain("--model");
-    expect(seen[0]).toContain("Gemini 3.5 Flash (Medium)");
+    expect(seen[0]).not.toContain("--model");
+    expect(seen[0]).not.toContain("Gemini 3.5 Flash (Medium)");
   });
 
   it("passes --dangerously-skip-permissions when allowTools is true", async () => {

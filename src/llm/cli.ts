@@ -376,9 +376,6 @@ export async function runCliModel({
 
   if (provider === "agy") {
     const agyArgs: string[] = [...providerExtraArgs, "--print"];
-    if (requestedModel) {
-      agyArgs.push("--model", requestedModel);
-    }
     if (allowTools) {
       agyArgs.push("--dangerously-skip-permissions");
     }

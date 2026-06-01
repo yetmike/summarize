@@ -199,6 +199,11 @@ export function parseRequestedModelId(raw: string): RequestedModel {
     }
     const cliProvider = providerRaw as CliProvider;
     const requestedModel = parts.slice(2).join("/").trim();
+    if (cliProvider === "agy" && requestedModel.length > 0) {
+      throw new Error(
+        `Invalid CLI model id "${trimmed}". Antigravity CLI uses cli/agy without a model suffix.`,
+      );
+    }
     const cliModel = requestedModel.length > 0 ? requestedModel : DEFAULT_CLI_MODELS[cliProvider];
     const requiredEnv = requiredEnvForCliProvider(cliProvider) as Extract<
       RequiredModelEnv,
