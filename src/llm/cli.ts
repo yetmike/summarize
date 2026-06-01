@@ -391,9 +391,6 @@ export async function runCliModel({
     ) {
       agyArgs.push("--print-timeout", goDurationFromMs(timeoutMs));
     }
-    if (allowTools) {
-      agyArgs.push("--dangerously-skip-permissions");
-    }
     // agy print mode accepts stdin; keep prompt content out of argv and process listings.
     const { stdout } = await execCliWithInput({
       execFileImpl: execFileFn,

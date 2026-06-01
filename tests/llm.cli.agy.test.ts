@@ -80,7 +80,7 @@ describe("runCliModel - agy provider", () => {
     expect(seen[0]).not.toContain("Gemini 3.5 Flash (Medium)");
   });
 
-  it("passes --dangerously-skip-permissions when allowTools is true", async () => {
+  it("does not auto-approve agy tools when allowTools is true", async () => {
     const seen: string[][] = [];
     const execFileImpl = makeStub((args) => {
       seen.push(args);
@@ -98,7 +98,7 @@ describe("runCliModel - agy provider", () => {
       config: null,
     });
 
-    expect(seen[0]).toContain("--dangerously-skip-permissions");
+    expect(seen[0]).not.toContain("--dangerously-skip-permissions");
   });
 
   it("passes summarize timeout to agy unless extra args override it", async () => {

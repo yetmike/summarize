@@ -102,6 +102,7 @@ path-based prompt and enables the required tool flags:
 - Agent: uses built-in file tools in `agent --print` mode (no extra flags)
 - OpenCode: `opencode run --format json ... --file <path>` when a file/image path is required
 - Copilot: `copilot -p <prompt>`; passes `--model <model>` when one is configured
+- Antigravity: `agy --print`; does not auto-approve tools for attachment prompts
 
 ## Config
 
