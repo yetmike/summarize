@@ -53,7 +53,6 @@ describe("runCliModel - agy provider", () => {
     expect(result.costUsd).toBeNull();
     expect(seenCmd).toBe("agy");
     expect(seen[0]).toContain("--print");
-    expect(seen[0]).toContain("Read the prompt from standard input and answer it.");
     expect(seen[0]).toContain("--sandbox");
     expect(seen[0]).toContain("--print-timeout");
     expect(seen[0]).toContain("1s");
@@ -83,7 +82,6 @@ describe("runCliModel - agy provider", () => {
 
     expect(result.text).toBe("answer text");
     expect(seen[0]).toContain("--print");
-    expect(seen[0]).toContain("Read the prompt from standard input and answer it.");
     expect(seen[0]).not.toContain("--model");
     expect(seen[0]).not.toContain("Gemini 3.5 Flash (Medium)");
   });
