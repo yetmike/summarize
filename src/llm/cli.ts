@@ -126,6 +126,14 @@ function resolveCodexModelAndArgs(
   return { model: CODEX_GPT_FAST_MODEL, extraArgs };
 }
 
+function hasAnyFlag(args: string[], flags: string[]): boolean {
+  return args.some((arg) => flags.some((flag) => arg === flag || arg.startsWith(`${flag}=`)));
+}
+
+function goDurationFromMs(timeoutMs: number): string {
+  return `${Math.max(1, Math.ceil(timeoutMs / 1000))}s`;
+}
+
 async function copyCodexAuthFiles(sourceDir: string | undefined, targetDir: string): Promise<void> {
   const codexHome = sourceDir?.trim() || path.join(homedir(), ".codex");
   const authPath = path.join(codexHome, "auth.json");
@@ -376,6 +384,13 @@ export async function runCliModel({
 
   if (provider === "agy") {
     const agyArgs: string[] = [...providerExtraArgs, "--print"];
+    if (
+      Number.isFinite(timeoutMs) &&
+      timeoutMs > 0 &&
+      !hasAnyFlag(providerExtraArgs, ["--print-timeout", "-print-timeout"])
+    ) {
+      agyArgs.push("--print-timeout", goDurationFromMs(timeoutMs));
+    }
     if (allowTools) {
       agyArgs.push("--dangerously-skip-permissions");
     }

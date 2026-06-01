@@ -50,6 +50,8 @@ describe("runCliModel - agy provider", () => {
     expect(result.costUsd).toBeNull();
     expect(seenCmd).toBe("agy");
     expect(seen[0]).toContain("--print");
+    expect(seen[0]).toContain("--print-timeout");
+    expect(seen[0]).toContain("1s");
     expect(seen[0]).not.toContain("--output-format");
     expect(seenInput).toContain("Summarize this.");
   });
@@ -97,6 +99,53 @@ describe("runCliModel - agy provider", () => {
     });
 
     expect(seen[0]).toContain("--dangerously-skip-permissions");
+  });
+
+  it("passes summarize timeout to agy unless extra args override it", async () => {
+    const seen: string[][] = [];
+    const execFileImpl = makeStub((args) => {
+      seen.push(args);
+      return { stdout: "ok" };
+    });
+
+    await runCliModel({
+      provider: "agy",
+      prompt: "Q",
+      model: null,
+      allowTools: false,
+      timeoutMs: 125_000,
+      env: {},
+      execFileImpl,
+      config: null,
+    });
+    expect(seen[0]).toContain("--print-timeout");
+    expect(seen[0]).toContain("125s");
+
+    await runCliModel({
+      provider: "agy",
+      prompt: "Q",
+      model: null,
+      allowTools: false,
+      timeoutMs: 125_000,
+      env: {},
+      execFileImpl,
+      config: { agy: { extraArgs: ["--print-timeout=10m"] } },
+    });
+    expect(seen[1]?.filter((arg) => arg.startsWith("--print-timeout"))).toEqual([
+      "--print-timeout=10m",
+    ]);
+
+    await runCliModel({
+      provider: "agy",
+      prompt: "Q",
+      model: null,
+      allowTools: false,
+      timeoutMs: 125_000,
+      env: {},
+      execFileImpl,
+      config: { agy: { extraArgs: ["-print-timeout=10m"] } },
+    });
+    expect(seen[2]?.filter((arg) => arg.includes("print-timeout"))).toEqual(["-print-timeout=10m"]);
   });
 
   it("throws when agy returns empty output", async () => {
