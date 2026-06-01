@@ -29,6 +29,7 @@ const DEFAULT_BINARIES: Record<CliProvider, string> = {
 const CLI_MAX_MESSAGE_ARG_BYTES = 120 * 1024;
 const CODEX_GPT_FAST_MODEL = "gpt-5.5";
 const CODEX_GPT_FAST_ALIASES = new Set(["gpt-fast", "gpt-5.5-fast"]);
+const AGY_STDIN_PROMPT_ARG = "Read the prompt from standard input and answer it.";
 
 const PROVIDER_PATH_ENV: Record<CliProvider, string> = {
   claude: "CLAUDE_PATH",
@@ -391,6 +392,7 @@ export async function runCliModel({
       if (!allowTools && !hasAnyFlag(providerExtraArgs, ["--sandbox"])) {
         agyArgs.push("--sandbox");
       }
+      agyArgs.push("--print", AGY_STDIN_PROMPT_ARG);
       if (
         Number.isFinite(timeoutMs) &&
         timeoutMs > 0 &&
@@ -398,7 +400,6 @@ export async function runCliModel({
       ) {
         agyArgs.push("--print-timeout", goDurationFromMs(timeoutMs));
       }
-      agyArgs.push("--print");
       const { stdout } = await execCliWithInput({
         execFileImpl: execFileFn,
         cmd: binary,
